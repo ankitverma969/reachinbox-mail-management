@@ -202,7 +202,11 @@ export const DashboardLayout: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/dashboard/compose')}
-            className="w-full h-10 rounded-full border border-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 text-[#2E7D32] font-medium text-sm flex items-center justify-center transition-all shadow-none"
+            className={`w-full h-10 rounded-full font-medium text-sm flex items-center justify-center transition-all shadow-none ${
+              location.pathname === '/dashboard/compose'
+                ? 'bg-[#2E7D32] text-white shadow-sm'
+                : 'border border-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 text-[#2E7D32]'
+            }`}
           >
             Compose
           </button>
@@ -259,89 +263,91 @@ export const DashboardLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 min-w-0 bg-white min-h-screen pt-4 px-6 sm:px-8">
-        {/* Top Action Header Bar */}
-        <div className="flex items-center space-x-4 mb-4">
-          {/* Pill Search Input */}
-          <div className="relative flex-1 max-w-xl">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Search className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search"
-              className="w-full h-10 pl-10 pr-9 rounded-full bg-[#F4F5F6] text-slate-900 placeholder-slate-400 text-sm border-none focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {/* Elasticsearch Dropdown Results */}
-            {searchOpen && (
-              <div className="absolute top-11 left-0 right-0 z-50 bg-white rounded-xl shadow-lg border border-slate-200/80 p-2 max-h-80 overflow-y-auto text-xs">
-                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Search Results ({searchResults.length})</span>
-                  {isSearching && <span className="text-emerald-600 animate-pulse">Searching...</span>}
-                </div>
-                {searchResults.length === 0 ? (
-                  <div className="p-3 text-center text-slate-400">
-                    No results for &ldquo;{searchQuery}&rdquo;
-                  </div>
-                ) : (
-                  searchResults.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer border-b last:border-0 border-slate-100"
-                      onClick={() => {
-                        setSearchOpen(false);
-                        if (item.status === 'SENT') {
-                          navigate('/dashboard/sent');
-                        } else {
-                          navigate('/dashboard/scheduled');
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-900 truncate">
-                          {item.recipientEmail}
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                          {item.status}
-                        </span>
-                      </div>
-                      <p className="text-slate-500 truncate mt-0.5">{item.subject}</p>
-                    </div>
-                  ))
-                )}
+        {/* Top Action Header Bar (Search & Quick Filters) - hidden on Compose and Email detail pages for clean dedicated workspace */}
+        {!location.pathname.includes('/compose') && !location.pathname.includes('/email/') && (
+          <div className="flex items-center space-x-4 mb-4">
+            {/* Pill Search Input */}
+            <div className="relative flex-1 max-w-xl">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" />
               </div>
-            )}
-          </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search"
+                className="w-full h-10 pl-10 pr-9 rounded-full bg-[#F4F5F6] text-slate-900 placeholder-slate-400 text-sm border-none focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
 
-          {/* Action icons right of search bar */}
-          <div className="flex items-center space-x-3 text-slate-400">
-            <button
-              type="button"
-              title="Filter"
-              className="p-1.5 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
-            >
-              <Filter className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              title="Refresh"
-              className="p-1.5 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
-            >
-              <RotateCw className="w-4 h-4" />
-            </button>
+              {/* Elasticsearch Dropdown Results */}
+              {searchOpen && (
+                <div className="absolute top-11 left-0 right-0 z-50 bg-white rounded-xl shadow-lg border border-slate-200/80 p-2 max-h-80 overflow-y-auto text-xs">
+                  <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Search Results ({searchResults.length})</span>
+                    {isSearching && <span className="text-emerald-600 animate-pulse">Searching...</span>}
+                  </div>
+                  {searchResults.length === 0 ? (
+                    <div className="p-3 text-center text-slate-400">
+                      No results for &ldquo;{searchQuery}&rdquo;
+                    </div>
+                  ) : (
+                    searchResults.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer border-b last:border-0 border-slate-100"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          if (item.status === 'SENT') {
+                            navigate('/dashboard/sent');
+                          } else {
+                            navigate('/dashboard/scheduled');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-900 truncate">
+                            {item.recipientEmail}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {item.status}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 truncate mt-0.5">{item.subject}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Action icons right of search bar */}
+            <div className="flex items-center space-x-3 text-slate-400">
+              <button
+                type="button"
+                title="Filter"
+                className="p-1.5 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+              >
+                <Filter className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                title="Refresh"
+                className="p-1.5 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+              >
+                <RotateCw className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Page View (Scheduled or Sent rows) */}
         <Outlet />

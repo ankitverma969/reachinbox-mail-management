@@ -16,24 +16,6 @@ export const AppRoutes: React.FC = () => {
       {/* Public Login Route */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Full-Page Views without sidebar (Matching Figma Screenshots 16 & 17) */}
-      <Route
-        path="/dashboard/compose"
-        element={
-          <ProtectedRoute>
-            <ComposePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/email/:id"
-        element={
-          <ProtectedRoute>
-            <EmailDetailPage />
-          </ProtectedRoute>
-        }
-      />
-
       {/* Main Dashboard with Sidebar Navigation */}
       <Route
         path="/dashboard"
@@ -48,6 +30,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="sent" element={<SentEmailsPage />} />
         <Route path="senders" element={<SendersPage />} />
         <Route path="slack" element={<SlackPage />} />
+        <Route path="compose" element={<ComposePage />} />
+        <Route path="email/:id" element={<EmailDetailPage />} />
       </Route>
 
       {/* Root Redirection */}

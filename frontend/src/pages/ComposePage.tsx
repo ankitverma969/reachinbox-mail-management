@@ -22,7 +22,8 @@ import {
   Quote,
   Code,
   Strikethrough,
-  FileText
+  FileText,
+  Send
 } from 'lucide-react';
 import { api, type SenderIdentityItem } from '../services/api.client';
 import { parseLeadsContent } from '../utils/csv-parser.util';
@@ -235,8 +236,58 @@ export const ComposePage: React.FC = () => {
     }
   };
 
+  const handleSendNow = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    // Include single input if typed but not confirmed
+    let targetRecipients = [...recipients];
+    if (recipientInput.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientInput.trim())) {
+      if (!targetRecipients.includes(recipientInput.trim())) {
+        targetRecipients.push(recipientInput.trim());
+      }
+    }
+
+    if (targetRecipients.length === 0) {
+      toastError('Validation Error', 'Please enter at least one recipient email address or upload a CSV lead list');
+      return;
+    }
+    if (!subject.trim()) {
+      toastError('Validation Error', 'Please enter an email subject line');
+      return;
+    }
+    if (!body.trim()) {
+      toastError('Validation Error', 'Please enter your email message body');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Immediate delivery: scheduledAt set to current timestamp
+      const scheduledAtIso = new Date().toISOString();
+
+      await api.scheduleCampaign({
+        senderId: selectedSenderId || (senders[0]?.id ?? 'default'),
+        subject: subject.trim(),
+        body: body.trim(),
+        recipients: targetRecipients,
+        scheduledAt: scheduledAtIso,
+        delayBetweenEmails: Number(delayBetweenEmails) || 2,
+        hourlyLimit: Number(hourlyLimit) || 100
+      });
+
+      toastSuccess('Sent Successfully', `Campaign dispatched for immediate delivery to ${targetRecipients.length} recipients`);
+      window.dispatchEvent(new CustomEvent('reachinbox:refresh'));
+      navigate('/dashboard/sent');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Sending failed';
+      toastError('Error', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans antialiased relative px-8 py-6">
+    <div className="bg-white text-slate-900 font-sans antialiased relative pb-12">
       {/* Hidden file inputs */}
       <input
         type="file"
@@ -271,12 +322,12 @@ export const ComposePage: React.FC = () => {
         </div>
 
         {/* Right Action Bar */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           {/* Dynamic Attachment Icon & Badge */}
           <button
             type="button"
             onClick={() => attachmentInputRef.current?.click()}
-            className={`flex items-center space-x-1 cursor-pointer transition-colors p-1 ${
+            className={`flex items-center space-x-1 cursor-pointer transition-colors p-1.5 rounded-full hover:bg-slate-100 ${
               attachments.length > 0 ? 'text-[#2E7D32]' : 'text-slate-400 hover:text-slate-700'
             }`}
             title={attachments.length > 0 ? `${attachments.length} attachment(s) attached` : 'Attach file'}
@@ -293,22 +344,36 @@ export const ComposePage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsSendLaterOpen(!isSendLaterOpen)}
-            className={`p-1 transition-colors ${
-              isSendLaterOpen ? 'text-[#2E7D32]' : 'text-slate-700 hover:text-slate-900'
+            className={`p-1.5 rounded-full transition-colors ${
+              isSendLaterOpen ? 'text-[#2E7D32] bg-emerald-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
             title="Schedule Delivery Time"
           >
             <Clock className="w-4 h-4" />
           </button>
 
-          {/* Send Later Button */}
+          {/* Send Later Button (Outline) */}
           <button
             type="button"
             onClick={() => void handleSendLater()}
             disabled={isSubmitting}
-            className="rounded-full border border-[#2E7D32] text-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 px-5 py-1 text-sm font-semibold transition-colors shadow-none disabled:opacity-50"
+            className="rounded-full border border-slate-300 hover:border-[#2E7D32] text-slate-700 hover:text-[#2E7D32] bg-white px-4 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center space-x-1.5 shadow-none"
+            title="Schedule email for delivery at specified time"
           >
-            {isSubmitting ? 'Scheduling...' : 'Send Later'}
+            <Clock className="w-3.5 h-3.5" />
+            <span>{isSubmitting ? 'Scheduling...' : 'Send Later'}</span>
+          </button>
+
+          {/* Send Now Button (Primary Solid) */}
+          <button
+            type="button"
+            onClick={() => void handleSendNow()}
+            disabled={isSubmitting}
+            className="rounded-full bg-[#2E7D32] hover:bg-[#1B5E20] text-white px-5 py-1.5 text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 flex items-center space-x-1.5"
+            title="Send email immediately to all recipients"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>{isSubmitting ? 'Sending...' : 'Send Now'}</span>
           </button>
         </div>
       </div>
@@ -505,6 +570,48 @@ export const ComposePage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Bottom Action Bar */}
+        <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
+          <div className="text-xs text-slate-500">
+            {recipients.length > 0 ? (
+              <span>Ready to deliver to <strong className="text-slate-800">{recipients.length}</strong> recipient{recipients.length > 1 ? 's' : ''}</span>
+            ) : (
+              <span className="text-slate-400">Add recipients or upload a CSV lead list</span>
+            )}
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setIsSendLaterOpen(!isSendLaterOpen)}
+              className="text-xs text-slate-500 hover:text-slate-800 flex items-center space-x-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              title="Configure delivery schedule"
+            >
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>{selectedPreset || (scheduledDate ? scheduledDate.replace('T', ' ') : 'Schedule')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSendLater()}
+              disabled={isSubmitting}
+              className="rounded-full border border-slate-300 hover:border-[#2E7D32] text-slate-700 hover:text-[#2E7D32] bg-white px-4 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center space-x-1.5 shadow-none"
+              title="Schedule email for delivery at specified time"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? 'Scheduling...' : 'Send Later'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSendNow()}
+              disabled={isSubmitting}
+              className="rounded-full bg-[#2E7D32] hover:bg-[#1B5E20] text-white px-5 py-1.5 text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 flex items-center space-x-1.5"
+              title="Send email immediately to all recipients"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? 'Sending...' : 'Send Now'}</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Send Later Popover with Dynamic Presets */}
