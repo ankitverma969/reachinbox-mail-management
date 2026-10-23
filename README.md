@@ -429,6 +429,15 @@ The frontend application will start at `http://localhost:5173`.
 |---|---|---|
 | `VITE_API_BASE_URL` | Root URL of backend Express API | `http://localhost:5000` |
 
+### Production AWS EC2 Environment Configuration
+In production on AWS EC2, all environment variables for the backend and Docker containers are read from:
+```bash
+/home/ubuntu/reachinbox-hiring-assignment/backend/.env
+```
+- **Single Source of Truth**: There is no root `.env` file; the application expects `backend/.env`.
+- **Docker Compose Command**: Run Docker Compose with `--env-file backend/.env` (e.g. `docker compose --env-file backend/.env up -d`).
+- **CI/CD Automation**: The GitHub Actions deployment workflow automatically checks for `backend/.env` and injects it into all deployment commands.
+
 ---
 
 ## 8. Example Usage

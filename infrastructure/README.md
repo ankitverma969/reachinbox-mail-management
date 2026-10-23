@@ -30,21 +30,21 @@ The system coordinates three specialized services:
 Run these commands from the root directory of the repository (`E:\reachinbox-hiring-assignment`):
 
 ### 1. Validate Docker Compose Configuration
-Checks that `docker-compose.yml` has valid syntax and parameters:
+Checks that `docker-compose.yml` has valid syntax and parameters against `backend/.env`:
 ```powershell
-docker compose config
+docker compose --env-file backend/.env config
 ```
 
-### 2. Start All Services in the Background
-Downloads images (if not already cached) and starts the three containers:
+### 2. Start Services in the Background
+Downloads images (if not already cached) and starts the core containers:
 ```powershell
-docker compose up -d
+docker compose --env-file backend/.env up -d
 ```
 
 ### 3. Check Service Health & Status
-Verify that all three services show `running` and `healthy`:
+Verify that services show `running` and `healthy`:
 ```powershell
-docker compose ps
+docker compose --env-file backend/.env ps
 ```
 
 ### 4. Inspect Live Logs

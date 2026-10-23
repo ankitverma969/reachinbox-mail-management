@@ -107,20 +107,28 @@ jobs:
             cd "$APP_DIR"
             echo "📍 Current working directory: $(pwd)"
 
-            # Verify production .env exists before proceeding without exposing secrets
+            # Verify production backend/.env exists before proceeding without exposing secrets
             echo "🔍 Verifying production environment configuration..."
-            if [ ! -f .env ]; then
-              echo "❌ Error: Production .env file is missing in $APP_DIR!" >&2
-              echo "   Please create and configure the production .env file on the EC2 host before deploying." >&2
+            if [ ! -f backend/.env ]; then
+              echo "❌ Error: Production environment file is missing at $APP_DIR/backend/.env!" >&2
+              echo "   Please create and configure backend/.env on the EC2 host before deploying." >&2
               exit 1
             fi
-            echo "✅ Production .env file found and verified (contents secured)."
+            echo "✅ Production backend/.env file found and verified (contents secured)."
 
-            # Fetch and reset to latest commits from main
-            echo "📥 Fetching latest code from origin/main..."
+            # Safely synchronize latest code while preserving any local EC2 changes
+            echo "📥 Synchronizing latest code from origin/main safely..."
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+              BACKUP_STASH="ec2-auto-stash-$(date +%Y%m%d%H%M%S)"
+              echo "⚠️ Warning: Detected uncommitted changes on EC2. Creating backup stash: $BACKUP_STASH"
+              git stash push -m "$BACKUP_STASH"
+            fi
             git fetch origin main
             git checkout main
-            git reset --hard origin/main
+            git merge --ff-only origin/main || {
+              echo "⚠️ Fast-forward merge not possible. Re-aligning cleanly with origin/main..."
+              git reset --hard origin/main
+            }
 
             # Verify Docker and Docker Compose availability
             command -v docker >/dev/null 2>&1 || { echo "❌ Error: Docker is not installed on EC2 server!" >&2; exit 1; }
@@ -131,28 +139,31 @@ jobs:
             echo "🐳 Docker: $(docker --version)"
             echo "🐙 Docker Compose: $(docker compose version)"
 
-            # Pull only required database and cache base images (Elasticsearch skipped)
-            echo "📦 Pulling PostgreSQL and Redis container images..."
-            docker compose pull postgres redis
+            # Define standard docker compose command with backend/.env
+            COMPOSE="docker compose --env-file backend/.env"
+
+            # Pull required cache base image (PostgreSQL is managed externally via Supabase)
+            echo "📦 Pulling Redis container image..."
+            $COMPOSE pull redis
 
             # Build production backend container
             echo "🔨 Building ReachInbox Backend Docker container..."
-            docker compose build backend
+            $COMPOSE build backend
 
-            # Start only required services: postgres, redis, and backend (Elasticsearch excluded)
-            echo "🚀 Starting core services (postgres, redis, backend)..."
-            docker compose up -d --remove-orphans postgres redis backend
+            # Start only required services: redis and backend (Supabase provides production database)
+            echo "🚀 Starting core services (redis, backend)..."
+            $COMPOSE up -d --remove-orphans redis backend
 
             # Apply Prisma database migrations (strictly migrate deploy, no db push)
             echo "📦 Applying Prisma database schema migrations..."
             sleep 5
-            docker compose exec -T backend npx prisma migrate deploy
+            $COMPOSE exec -T backend npx prisma migrate deploy
 
             # Verify backend health endpoint with resilient retry loop
             echo "🩺 Verifying backend health endpoint (http://localhost:5000/api/health)..."
             HEALTHY=false
             for attempt in $(seq 1 15); do
-              if docker compose exec -T backend curl -sf http://localhost:5000/api/health >/dev/null 2>&1; then
+              if $COMPOSE exec -T backend curl -sf http://localhost:5000/api/health >/dev/null 2>&1; then
                 HEALTHY=true
                 echo "✅ Backend health check passed on attempt $attempt."
                 break
@@ -164,13 +175,13 @@ jobs:
             if [ "$HEALTHY" != "true" ]; then
               echo "❌ Error: Backend health check failed after 30 seconds!" >&2
               echo "📋 Backend container logs (last 100 lines):" >&2
-              docker compose logs --tail=100 backend >&2
+              $COMPOSE logs --tail=100 backend >&2
               exit 1
             fi
 
             # Display active container states
             echo "📊 Active containers:"
-            docker compose ps
+            $COMPOSE ps
 
             # Clean up dangling images to prevent disk exhaustion (preserving volumes)
             echo "🧹 Pruning dangling Docker images to preserve EC2 disk space..."
