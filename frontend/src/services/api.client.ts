@@ -1,12 +1,25 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
 
-// If VITE_API_BASE_URL is not set: in local dev use localhost:5000; on Vercel/prod use relative URL '' (for Vercel rewrites proxy)
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL !== undefined
-    ? import.meta.env.VITE_API_BASE_URL
-    : import.meta.env.DEV
-      ? 'http://localhost:5000'
-      : '';
+function getApiBaseUrl(): string {
+  // 1. If running in browser over HTTPS, route through Vercel's HTTPS rewrite proxy to prevent Mixed Content blocking
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    const configured = import.meta.env.VITE_API_BASE_URL;
+    if (configured && configured.startsWith('https://')) {
+      return configured;
+    }
+    return '';
+  }
+
+  // 2. Explicit environment variable configured (e.g. for native/mobile or local test)
+  if (import.meta.env.VITE_API_BASE_URL !== undefined && import.meta.env.VITE_API_BASE_URL !== '') {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+
+  // 3. Local Vite development server fallback
+  return import.meta.env.DEV ? 'http://localhost:5000' : '';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export interface UserProfile {
   id: string;
