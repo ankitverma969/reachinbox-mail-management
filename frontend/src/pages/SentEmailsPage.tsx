@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Star, ExternalLink, Loader2 } from 'lucide-react';
 import { api, type SentEmailItem } from '../services/api.client';
 
@@ -25,6 +26,7 @@ const DEFAULT_SENT_ITEMS: SentEmailItem[] = [
 ];
 
 export const SentEmailsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [emails, setEmails] = useState<SentEmailItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
@@ -89,6 +91,7 @@ export const SentEmailsPage: React.FC = () => {
           {emails.map((email, idx) => (
             <div
               key={email.id}
+              onClick={() => navigate(`/dashboard/email/${email.id}`)}
               className="py-3 px-1 flex items-center justify-between hover:bg-slate-50/50 transition-colors group cursor-pointer"
             >
               <div className="flex items-center space-x-4 min-w-0 flex-1 pr-4">

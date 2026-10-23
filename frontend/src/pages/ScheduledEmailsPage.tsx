@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Clock, Star, Trash2, Loader2 } from 'lucide-react';
 import { api, type ScheduledEmailItem } from '../services/api.client';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -27,6 +28,7 @@ const DEFAULT_SCHEDULED_ITEMS: ScheduledEmailItem[] = [
 ];
 
 export const ScheduledEmailsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
 
   const [emails, setEmails] = useState<ScheduledEmailItem[]>([]);
@@ -149,6 +151,7 @@ export const ScheduledEmailsPage: React.FC = () => {
           {emails.map((email, idx) => (
             <div
               key={email.id}
+              onClick={() => navigate(`/dashboard/email/${email.id}`)}
               className="py-3 px-1 flex items-center justify-between hover:bg-slate-50/50 transition-colors group cursor-pointer"
             >
               <div className="flex items-center space-x-4 min-w-0 flex-1 pr-4">

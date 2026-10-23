@@ -7,6 +7,8 @@ import { ScheduledEmailsPage } from '../pages/ScheduledEmailsPage';
 import { SentEmailsPage } from '../pages/SentEmailsPage';
 import { SendersPage } from '../pages/SendersPage';
 import { SlackPage } from '../pages/SlackPage';
+import { ComposePage } from '../pages/ComposePage';
+import { EmailDetailPage } from '../pages/EmailDetailPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -14,7 +16,25 @@ export const AppRoutes: React.FC = () => {
       {/* Public Login Route */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Authenticated Dashboard Core */}
+      {/* Full-Page Views without sidebar (Matching Figma Screenshots 16 & 17) */}
+      <Route
+        path="/dashboard/compose"
+        element={
+          <ProtectedRoute>
+            <ComposePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/email/:id"
+        element={
+          <ProtectedRoute>
+            <EmailDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Main Dashboard with Sidebar Navigation */}
       <Route
         path="/dashboard"
         element={

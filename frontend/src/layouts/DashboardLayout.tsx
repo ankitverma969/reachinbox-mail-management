@@ -195,7 +195,7 @@ export const DashboardLayout: React.FC = () => {
           {/* Primary Pill Compose Button */}
           <button
             type="button"
-            onClick={() => setIsComposeOpen(true)}
+            onClick={() => navigate('/dashboard/compose')}
             className="w-full h-10 rounded-full border border-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 text-[#2E7D32] font-medium text-sm flex items-center justify-center transition-all shadow-none"
           >
             Compose
