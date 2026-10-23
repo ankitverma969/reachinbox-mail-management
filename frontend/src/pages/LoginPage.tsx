@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
-  const { loginWithGoogle, loginWithDev, isAuthenticated } = useAuth();
+  const { loginWithGoogle, loginWithEmail, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -24,14 +24,10 @@ export const LoginPage: React.FC = () => {
     if (!email.trim()) return;
     setIsSubmitting(true);
     try {
-      const derivedName = email
-        .split('@')[0]
-        .split(/[._-]/)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ') || 'User';
-
-      await loginWithDev(email.trim(), derivedName);
+      await loginWithEmail(email.trim(), password);
       navigate('/dashboard/scheduled', { replace: true });
+    } catch {
+      // Toast notification is managed in AuthContext
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +76,7 @@ export const LoginPage: React.FC = () => {
           </div>
           <div className="relative flex justify-center text-xs">
             <span className="bg-white px-3 text-slate-400 font-normal">
-              or sign up through email
+              or log in with email
             </span>
           </div>
         </div>

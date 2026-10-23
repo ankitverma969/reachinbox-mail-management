@@ -7,6 +7,7 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   loginWithGoogle: () => void;
+  loginWithEmail: (email: string, password?: string) => Promise<void>;
   loginWithDev: (email?: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -40,10 +41,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.location.href = api.getGoogleLoginUrl();
   };
 
-  const loginWithDev = async (email?: string, name?: string) => {
+  const loginWithEmail = async (email: string, password?: string) => {
     setLoading(true);
     try {
-      const loggedUser = await api.devLogin(email, name);
+      const loggedUser = await api.loginWithEmail(email, password);
       setUser(loggedUser);
       toastSuccess('Welcome to ReachInbox', `Signed in as ${loggedUser.name || loggedUser.email}`);
     } catch (err: unknown) {
@@ -53,6 +54,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false);
     }
+  };
+
+  const loginWithDev = async (email?: string, _name?: string) => {
+    return loginWithEmail(email || 'demo.lead@reachinbox.test');
   };
 
   const logout = async () => {
@@ -78,6 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isAuthenticated: !!user,
         loginWithGoogle,
+        loginWithEmail,
         loginWithDev,
         logout,
         refreshProfile

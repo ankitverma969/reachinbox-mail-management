@@ -12,7 +12,8 @@ router.get('/google/callback', (req, res, next) => authController.handleGoogleCa
 router.get('/me', requireAuth, (req, res, next) => authController.getCurrentUser(req, res, next));
 router.post('/logout', (req, res) => authController.logout(req, res));
 
-// Local development / fallback testing endpoint
+// Authentication endpoints
+router.post('/login', (req, res, next) => authController.loginWithEmail(req, res, next));
 router.post('/dev-login', (req, res, next) => authController.devLogin(req, res, next));
 
 export const authRoutes = router;

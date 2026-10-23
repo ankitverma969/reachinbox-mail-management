@@ -126,12 +126,16 @@ class ApiClient {
     await this.client.post('/api/v1/auth/logout');
   }
 
-  async devLogin(email?: string, name?: string): Promise<UserProfile> {
+  async loginWithEmail(email: string, password?: string): Promise<UserProfile> {
     const res = await this.client.post<{ success: boolean; data: { user: UserProfile; token: string } }>(
-      '/api/v1/auth/dev-login',
-      { email, name }
+      '/api/v1/auth/login',
+      { email, password }
     );
     return res.data.data.user;
+  }
+
+  async devLogin(email?: string, name?: string): Promise<UserProfile> {
+    return this.loginWithEmail(email || 'demo.lead@reachinbox.test', name);
   }
 
   getGoogleLoginUrl(): string {

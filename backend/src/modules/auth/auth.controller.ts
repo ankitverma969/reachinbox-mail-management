@@ -149,39 +149,37 @@ export class AuthController {
   }
 
   /**
-   * Developer login endpoint strictly for local testing and demonstration.
-   * POST /api/v1/auth/dev-login
+   * Email authentication endpoint.
+   * If the account exists in the database, authenticates the user and issues a session token.
+   * If the account does not exist (fresh email), registration via this endpoint is not accepted,
+   * requiring the user to authenticate via official Google OAuth.
+   * POST /api/v1/auth/login or /api/v1/auth/dev-login
    */
-  async devLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async loginWithEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      if (env.NODE_ENV === 'production' || env.ENABLE_DEV_LOGIN !== 'true') {
-        res.status(403).json({
+      const rawEmail = (req.body?.email as string) || '';
+      const email = rawEmail.toLowerCase().trim();
+
+      if (!email || !email.includes('@') || email.length > 120) {
+        throw new ValidationError('A valid email address is required');
+      }
+
+      // Check if user account already exists in database
+      const user = await userRepository.findByEmail(email);
+      if (!user) {
+        res.status(404).json({
           success: false,
           error: {
-            code: 'DEV_LOGIN_DISABLED',
-            message: 'Developer bypass login is disabled in this environment. Please authenticate via official Google OAuth.'
+            code: 'ACCOUNT_NOT_FOUND',
+            message: 'No account found with this email. Please authenticate via official Google OAuth or register first.'
           }
         });
         return;
       }
 
-      const rawEmail = (req.body?.email as string) || 'demo.lead@reachinbox.test';
-      const email = rawEmail.toLowerCase().trim();
-      const name = ((req.body?.name as string) || 'Alex Morgan').trim();
-
-      // Prohibit impersonating production or reserved accounts
-      if (!email.includes('@') || email.length > 120) {
-        throw new ValidationError('A valid test email address is required for developer login');
-      }
-
-      const user = await userRepository.upsertGoogleUser({
-        googleId: `dev-${Buffer.from(email).toString('base64').substring(0, 16)}`,
-        email,
-        name,
-        avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`
-      });
-
       const token = this.issueSessionToken(res, user);
+
+      logger.info({ userId: user.id, email: user.email }, 'User logged in via email successfully');
 
       res.status(200).json({
         success: true,
@@ -199,6 +197,14 @@ export class AuthController {
     } catch (err) {
       next(err);
     }
+  }
+
+  /**
+   * Developer login endpoint alias for backward compatibility.
+   * POST /api/v1/auth/dev-login
+   */
+  async devLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    return this.loginWithEmail(req, res, next);
   }
 }
 
