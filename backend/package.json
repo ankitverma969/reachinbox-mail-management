@@ -1,0 +1,44 @@
+{
+  "name": "reachinbox-backend",
+  "version": "1.0.0",
+  "description": "ReachInbox Email Job Scheduler Backend Service",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bullmq": "^5.21.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.1",
+    "nodemailer": "^10.2.1",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.9.0",
+    "@types/nodemailer": "^8.0.2",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.15.0",
+    "pino-pretty": "^13.0.0",
+    "prettier": "^3.3.3",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

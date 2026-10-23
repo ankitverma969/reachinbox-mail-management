@@ -1,0 +1,14 @@
+// ReachInbox Email Job Scheduler - Prisma Schema
+// Single source of truth for relational data models
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: Application models (User, SenderIdentity, EmailBatch, EmailJob, SlackIntegration, RateLimitAuditLog)
+// will be added in Phase 2 in strict compliance with DATABASE_DESIGN.md.
