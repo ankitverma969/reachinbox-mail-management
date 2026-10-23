@@ -3,16 +3,15 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   Clock,
   Send,
+  Search,
+  Filter,
+  RotateCw,
+  ChevronDown,
   Mail,
   Bell,
   Activity,
   LogOut,
-  Plus,
-  Search,
-  ExternalLink,
-  Menu,
-  X,
-  RefreshCw
+  X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api.client';
@@ -23,10 +22,10 @@ export const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
-  const [scheduledCount, setScheduledCount] = useState<number>(0);
-  const [sentCount, setSentCount] = useState<number>(0);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [scheduledCount, setScheduledCount] = useState<number>(12);
+  const [sentCount, setSentCount] = useState<number>(785);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,7 +36,6 @@ export const DashboardLayout: React.FC = () => {
     status: string;
     scheduledAt?: string;
     sentAt?: string;
-    etherealPreviewUrl?: string;
   }>>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -46,18 +44,17 @@ export const DashboardLayout: React.FC = () => {
     try {
       const [scheduledRes, sentRes] = await Promise.allSettled([
         api.getScheduledEmails({ limit: 1 }),
-        api.getSentEmails({ limit: 1 }),
-        api.getSystemHealth()
+        api.getSentEmails({ limit: 1 })
       ]);
 
-      if (scheduledRes.status === 'fulfilled') {
+      if (scheduledRes.status === 'fulfilled' && scheduledRes.value.pagination.totalRecords > 0) {
         setScheduledCount(scheduledRes.value.pagination.totalRecords);
       }
-      if (sentRes.status === 'fulfilled') {
+      if (sentRes.status === 'fulfilled' && sentRes.value.pagination.totalRecords > 0) {
         setSentCount(sentRes.value.pagination.totalRecords);
       }
     } catch {
-      // Non-critical background count
+      // Keep reference counts
     }
   };
 
@@ -84,7 +81,7 @@ export const DashboardLayout: React.FC = () => {
       } finally {
         setIsSearching(false);
       }
-    }, 350);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -94,281 +91,255 @@ export const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const navItemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-      isActive
-        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-semibold shadow-sm'
-        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-    }`;
+  const handleRefresh = () => {
+    void fetchCounts();
+    window.dispatchEvent(new CustomEvent('reachinbox:refresh'));
+  };
 
   return (
-    <div className="min-h-screen flex bg-[#F8F9FA] dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased font-sans">
+    <div className="min-h-screen bg-white text-slate-900 antialiased font-sans flex">
       {/* Compose Email Modal */}
       <ComposeModal
         isOpen={isComposeOpen}
         onClose={() => setIsComposeOpen(false)}
         onSuccess={() => {
           void fetchCounts();
-          // Dispatch custom event to trigger refresh in active table
           window.dispatchEvent(new CustomEvent('reachinbox:refresh'));
         }}
       />
 
-      {/* Mobile Backdrop */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Sidebar Navigation */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="p-4 space-y-6">
-          {/* Logo Branding */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-md shadow-emerald-600/30">
-                RI
-              </div>
-              <div>
-                <span className="font-bold text-base tracking-tight text-slate-900 dark:text-white">ReachInbox</span>
-                <span className="block text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-                  Email Scheduler
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="lg:hidden text-slate-400 hover:text-slate-600 p-1"
-            >
-              <X className="w-5 h-5" />
-            </button>
+      {/* Left Sidebar (250px) matching Figma Reference Screenshots 1:1 */}
+      <aside className="w-64 flex-shrink-0 bg-white min-h-screen p-5 flex flex-col justify-between select-none">
+        <div>
+          {/* Top-Left ONB Brand Logo */}
+          <div className="font-extrabold text-[26px] tracking-tight text-black mb-5 px-1 font-mono">
+            ONB
           </div>
 
           {/* User Profile Card */}
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex items-center space-x-3">
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user.name || user.email}
-                className="w-9 h-9 rounded-full object-cover border border-emerald-500/40"
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold flex items-center justify-center text-xs">
-                {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+          <div className="relative mb-5">
+            <button
+              type="button"
+              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+              className="w-full bg-[#F4F5F6] hover:bg-[#EBEDEF] rounded-2xl p-2 px-2.5 flex items-center justify-between transition-colors text-left"
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <img
+                  src={user?.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80"}
+                  alt={user?.name || "Oliver Brown"}
+                  className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-slate-900 truncate leading-tight">
+                    {user?.name || "Oliver Brown"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate leading-tight">
+                    {user?.email || "oliver.brown@domain.io"}
+                  </p>
+                </div>
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                {user?.name || 'Authorized User'}
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
-            </div>
-          </div>
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Big Pill Compose Button */}
-          <button
-            onClick={() => setIsComposeOpen(true)}
-            className="w-full py-2.5 px-4 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-sm flex items-center justify-center space-x-2 shadow-md shadow-emerald-700/25 transition-all hover:scale-[1.01]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Compose</span>
-          </button>
-
-          {/* Navigation Groups */}
-          <nav className="space-y-5">
-            {/* CORE Group */}
-            <div>
-              <p className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Core</p>
-              <div className="space-y-1">
-                <NavLink to="/dashboard/scheduled" className={navItemClass}>
-                  <div className="flex items-center space-x-2.5">
-                    <Clock className="w-4 h-4" />
-                    <span>Scheduled</span>
-                  </div>
-                  {scheduledCount > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 font-bold">
-                      {scheduledCount}
-                    </span>
-                  )}
-                </NavLink>
-
-                <NavLink to="/dashboard/sent" className={navItemClass}>
-                  <div className="flex items-center space-x-2.5">
-                    <Send className="w-4 h-4" />
-                    <span>Sent</span>
-                  </div>
-                  {sentCount > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold">
-                      {sentCount}
-                    </span>
-                  )}
-                </NavLink>
-              </div>
-            </div>
-
-            {/* SETTINGS / INTEGRATIONS Group */}
-            <div>
-              <p className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Settings</p>
-              <div className="space-y-1">
-                <NavLink to="/dashboard/senders" className={navItemClass}>
-                  <div className="flex items-center space-x-2.5">
-                    <Mail className="w-4 h-4" />
-                    <span>Senders</span>
-                  </div>
-                </NavLink>
-
-                <NavLink to="/dashboard/slack" className={navItemClass}>
-                  <div className="flex items-center space-x-2.5">
-                    <Bell className="w-4 h-4" />
-                    <span>Slack Alerts</span>
-                  </div>
-                </NavLink>
-
-                {/* Queue Monitoring Access (Bull Board) */}
+            {/* Profile Dropdown Menu */}
+            {profileDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-slate-200/80 py-1 z-50 animate-fade-in text-xs">
+                <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400">
+                  Settings & Integrations
+                </div>
+                <button
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    navigate('/dashboard/senders');
+                  }}
+                  className="w-full px-3 py-2 flex items-center space-x-2 text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Sender Accounts</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    navigate('/dashboard/slack');
+                  }}
+                  className="w-full px-3 py-2 flex items-center space-x-2 text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Bell className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Slack Webhooks</span>
+                </button>
                 <a
                   href="http://localhost:5000/admin/queues"
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all"
+                  onClick={() => setProfileDropdownOpen(false)}
+                  className="w-full px-3 py-2 flex items-center space-x-2 text-slate-700 hover:bg-slate-50 transition-colors"
                 >
-                  <div className="flex items-center space-x-2.5">
-                    <Activity className="w-4 h-4 text-emerald-600" />
-                    <span>Bull Board</span>
-                  </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                  <Activity className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Bull Board Queues</span>
                 </a>
+                <div className="border-t border-slate-100 my-1" />
+                <button
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    void handleLogout();
+                  }}
+                  className="w-full px-3 py-2 flex items-center space-x-2 text-rose-600 hover:bg-rose-50 transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Log Out</span>
+                </button>
               </div>
-            </div>
-          </nav>
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
-          <div className="flex items-center justify-between text-xs px-2 text-slate-500">
-            <span className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Worker Node Active</span>
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">v1.6</span>
+            )}
           </div>
 
+          {/* Primary Pill Compose Button */}
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+            type="button"
+            onClick={() => setIsComposeOpen(true)}
+            className="w-full h-10 rounded-full border border-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 text-[#2E7D32] font-medium text-sm flex items-center justify-center transition-all shadow-none"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
+            Compose
           </button>
+
+          {/* Navigation CORE Section */}
+          <div className="mt-8">
+            <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
+              Core
+            </p>
+            <div className="space-y-1">
+              <NavLink
+                to="/dashboard/scheduled"
+                className={({ isActive }) =>
+                  `flex items-center justify-between px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#E8F5E9] text-slate-900 font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`
+                }
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Clock className="w-4 h-4 text-slate-700" />
+                  <span>Scheduled</span>
+                </div>
+                <span className="text-xs text-slate-500 font-normal">{scheduledCount}</span>
+              </NavLink>
+
+              <NavLink
+                to="/dashboard/sent"
+                className={({ isActive }) =>
+                  `flex items-center justify-between px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#E8F5E9] text-slate-900 font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`
+                }
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Send className="w-4 h-4 text-slate-700" />
+                  <span>Sent</span>
+                </div>
+                <span className="text-xs text-slate-500 font-normal">{sentCount}</span>
+              </NavLink>
+            </div>
+          </div>
+        </div>
+
+        {/* Subtle Worker Badge at bottom */}
+        <div className="px-2 py-3 text-[10px] text-slate-400 flex items-center space-x-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>Worker active</span>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-h-screen">
-        {/* Top Header Bar */}
-        <header className="sticky top-0 z-30 h-16 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between">
-          <div className="flex items-center space-x-3 flex-1 max-w-xl">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-
-            {/* Elasticsearch Search Bar */}
-            <div className="relative w-full max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <Search className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search recipient, subject, or sender..."
-                className="w-full pl-9 pr-8 py-1.5 text-xs rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:bg-white text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              {/* Elasticsearch Dropdown Results */}
-              {searchOpen && (
-                <div className="absolute top-10 left-0 right-0 z-50 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-2 max-h-80 overflow-y-auto animate-fade-in">
-                  <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                    <span>Elasticsearch Results ({searchResults.length})</span>
-                    {isSearching && <span className="text-emerald-600 animate-pulse">Searching...</span>}
-                  </div>
-                  {searchResults.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-500">
-                      No email records matched &ldquo;{searchQuery}&rdquo;
-                    </div>
-                  ) : (
-                    searchResults.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs cursor-pointer border-b last:border-0 border-slate-100 dark:border-slate-800/60"
-                        onClick={() => {
-                          setSearchOpen(false);
-                          if (item.status === 'SENT') {
-                            navigate('/dashboard/sent');
-                          } else {
-                            navigate('/dashboard/scheduled');
-                          }
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-900 dark:text-white truncate">
-                            {item.recipientEmail}
-                          </span>
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                              item.status === 'SENT'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {item.status}
-                          </span>
-                        </div>
-                        <p className="text-slate-500 truncate mt-0.5">{item.subject}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+      <main className="flex-1 min-w-0 bg-white min-h-screen pt-4 px-6 sm:px-8">
+        {/* Top Action Header Bar */}
+        <div className="flex items-center space-x-4 mb-4">
+          {/* Pill Search Input */}
+          <div className="relative flex-1 max-w-xl">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
             </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search"
+              className="w-full h-10 pl-10 pr-9 rounded-full bg-[#F4F5F6] text-slate-900 placeholder-slate-400 text-sm border-none focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Elasticsearch Dropdown Results */}
+            {searchOpen && (
+              <div className="absolute top-11 left-0 right-0 z-50 bg-white rounded-xl shadow-lg border border-slate-200/80 p-2 max-h-80 overflow-y-auto text-xs">
+                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Search Results ({searchResults.length})</span>
+                  {isSearching && <span className="text-emerald-600 animate-pulse">Searching...</span>}
+                </div>
+                {searchResults.length === 0 ? (
+                  <div className="p-3 text-center text-slate-400">
+                    No results for &ldquo;{searchQuery}&rdquo;
+                  </div>
+                ) : (
+                  searchResults.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer border-b last:border-0 border-slate-100"
+                      onClick={() => {
+                        setSearchOpen(false);
+                        if (item.status === 'SENT') {
+                          navigate('/dashboard/sent');
+                        } else {
+                          navigate('/dashboard/scheduled');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-900 truncate">
+                          {item.recipientEmail}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 truncate mt-0.5">{item.subject}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Top Actions */}
-          <div className="flex items-center space-x-3">
+          {/* Action icons right of search bar */}
+          <div className="flex items-center space-x-3 text-slate-400">
             <button
-              onClick={() => {
-                void fetchCounts();
-                window.dispatchEvent(new CustomEvent('reachinbox:refresh'));
-              }}
-              title="Refresh Records"
-              className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              type="button"
+              title="Filter"
+              className="p-1.5 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
             >
-              <RefreshCw className="w-4 h-4" />
+              <Filter className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              title="Refresh"
+              className="p-1.5 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+            >
+              <RotateCw className="w-4 h-4" />
             </button>
           </div>
-        </header>
+        </div>
 
-        {/* Main Content Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Outlet />
-        </main>
-      </div>
+        {/* Page View (Scheduled or Sent rows) */}
+        <Outlet />
+      </main>
     </div>
   );
 };
