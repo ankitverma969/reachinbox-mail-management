@@ -18,7 +18,11 @@ export default [
         clearTimeout: 'readonly',
         setInterval: 'readonly',
         clearInterval: 'readonly',
-        console: 'readonly'
+        console: 'readonly',
+        Buffer: 'readonly',
+        fetch: 'readonly',
+        URLSearchParams: 'readonly',
+        URL: 'readonly'
       }
     },
     plugins: {

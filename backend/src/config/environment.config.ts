@@ -21,19 +21,32 @@ const environmentSchema = z.object({
 
   // Elasticsearch
   ELASTICSEARCH_URL: z.string().default('http://localhost:9200'),
+  ELASTICSEARCH_NODE: z.string().default('http://localhost:9200'),
+  ELASTICSEARCH_INDEX_PREFIX: z.string().default('reachinbox'),
+  ELASTICSEARCH_API_KEY: z.string().optional(),
+  ELASTICSEARCH_USERNAME: z.string().optional(),
+  ELASTICSEARCH_PASSWORD: z.string().optional(),
 
   // Worker Settings
   EMAIL_WORKER_CONCURRENCY: z.coerce.number().default(5),
   MIN_EMAIL_SEND_DELAY_MS: z.coerce.number().default(2000),
   MAX_EMAILS_PER_HOUR_PER_SENDER: z.coerce.number().default(200),
+  GLOBAL_HOURLY_EMAIL_LIMIT: z.coerce.number().optional(),
 
   // OAuth & Credentials (optional at foundation stage)
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_CALLBACK_URL: z.string().optional(),
+  GOOGLE_CALLBACK_URL: z.string().default('http://localhost:5000/api/v1/auth/google/callback'),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_CALLBACK_URL: z.string().optional(),
+  SLACK_BOT_TOKEN: z.string().optional(),
+  SLACK_DEFAULT_CHANNEL_ID: z.string().default('D0CBFH91A5B'),
+
+  // Dedicated Admin Credentials for Bull Board & Ops
+  ADMIN_USERNAME: z.string().default('admin'),
+  ADMIN_PASSWORD: z.string().default('reachinbox_admin_2026!'),
+  ADMIN_API_KEY: z.string().default('reachinbox_admin_secret_key_2026'),
 
   // SMTP Settings (optional at foundation stage)
   ETHEREAL_HOST: z.string().default('smtp.ethereal.email'),
@@ -41,9 +54,42 @@ const environmentSchema = z.object({
   ETHEREAL_USER: z.string().optional(),
   ETHEREAL_PASSWORD: z.string().optional(),
 
-  // Security
+  // Security & Authentication Flags
+  ENABLE_DEV_LOGIN: z.enum(['true', 'false']).default('false'),
   JWT_SECRET: z.string().default('development_jwt_secret_key_minimum_32_characters_long_for_reachinbox'),
   ENCRYPTION_KEY: z.string().default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')
+}).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    if (data.ADMIN_PASSWORD === 'reachinbox_admin_2026!') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ADMIN_PASSWORD'],
+        message: 'Default ADMIN_PASSWORD cannot be used in production. Please set a dedicated strong password.'
+      });
+    }
+    if (data.JWT_SECRET === 'development_jwt_secret_key_minimum_32_characters_long_for_reachinbox') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['JWT_SECRET'],
+        message: 'Default JWT_SECRET cannot be used in production. Please set a unique secret.'
+      });
+    }
+    if (data.ENABLE_DEV_LOGIN === 'true') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ENABLE_DEV_LOGIN'],
+        message: 'Developer bypass login (ENABLE_DEV_LOGIN=true) is strictly forbidden in production mode.'
+      });
+    }
+  }
+
+  if (data.ADMIN_PASSWORD && data.JWT_SECRET && data.ADMIN_PASSWORD === data.JWT_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['ADMIN_PASSWORD'],
+      message: 'ADMIN_PASSWORD must not be the same as JWT_SECRET.'
+    });
+  }
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

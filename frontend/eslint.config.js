@@ -21,13 +21,19 @@ export default [
         console: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
-        HTMLElement: 'readonly'
+        HTMLElement: 'readonly',
+        HTMLInputElement: 'readonly',
+        FileList: 'readonly',
+        File: 'readonly',
+        FileReader: 'readonly',
+        CustomEvent: 'readonly'
       }
     },
     plugins: {
       '@typescript-eslint': tsPlugin
     },
     rules: {
+      'no-undef': 'off',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
       '@typescript-eslint/no-explicit-any': 'error',

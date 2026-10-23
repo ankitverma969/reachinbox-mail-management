@@ -127,7 +127,13 @@ export const HealthStatusPage: React.FC = () => {
           </div>
           <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
             <span className="text-slate-500">Prisma Layer</span>
-            <span className="text-blue-400 font-medium">{data?.dependencies.database ?? 'Configured'}</span>
+            <span
+              className={`font-medium ${
+                data?.dependencies.database === 'connected' ? 'text-emerald-400' : 'text-blue-400'
+              }`}
+            >
+              {data?.dependencies.database ?? 'Configured'}
+            </span>
           </div>
         </div>
 
