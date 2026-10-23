@@ -5,6 +5,7 @@ import { userRepository } from './user.repository.js';
 import { env } from '../../config/environment.config.js';
 import { ValidationError, UnauthorizedError } from '../../shared/errors/AppError.js';
 import { logger } from '../../shared/logger/structured-logger.js';
+import { buildFrontendRedirectUrl } from '../../shared/utils/redirect.util.js';
 
 export class AuthController {
   private issueSessionToken(res: Response, user: { id: string; email: string; name: string; avatarUrl?: string | null }): string {
@@ -66,7 +67,7 @@ export class AuthController {
       const error = req.query.error as string | undefined;
       if (error) {
         logger.warn({ error }, 'Google OAuth access was denied or cancelled by user');
-        res.redirect(`${env.FRONTEND_URL}/login?error=oauth_denied`);
+        res.redirect(buildFrontendRedirectUrl('/login?error=oauth_denied'));
         return;
       }
 
@@ -90,10 +91,10 @@ export class AuthController {
       this.issueSessionToken(res, user);
 
       logger.info({ userId: user.id, email: user.email }, 'User authenticated successfully via Google OAuth');
-      res.redirect(`${env.FRONTEND_URL}/dashboard?login=success`);
+      res.redirect(buildFrontendRedirectUrl('/dashboard?login=success'));
     } catch (err) {
       logger.error({ err }, 'Error during Google OAuth callback processing');
-      res.redirect(`${env.FRONTEND_URL}/login?error=auth_failed`);
+      res.redirect(buildFrontendRedirectUrl('/login?error=auth_failed'));
     }
   }
 

@@ -7,7 +7,40 @@ dotenv.config();
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(5000),
-  FRONTEND_URL: z.string().default('http://localhost:5173'),
+  FRONTEND_URL: z
+    .string()
+    .optional()
+    .transform((val) => {
+      // Check alternate environment variables if FRONTEND_URL is empty
+      let url = val || process.env.CLIENT_URL || process.env.APP_URL;
+      if (!url && process.env.VERCEL_URL) {
+        url = `https://${process.env.VERCEL_URL}`;
+      }
+
+      if (!url || url.trim() === '') {
+        return process.env.NODE_ENV === 'production'
+          ? 'https://reachinboxai4u.vercel.app'
+          : 'http://localhost:5173';
+      }
+
+      url = url.trim();
+
+      // Reject/sanitize wildcard patterns (*.vercel.app, %2A.vercel.app)
+      if (url.includes('*') || url.includes('%2A')) {
+        return process.env.NODE_ENV === 'production'
+          ? 'https://reachinboxai4u.vercel.app'
+          : 'http://localhost:5173';
+      }
+
+      // Ensure protocol is present
+      if (!/^https?:\/\//i.test(url)) {
+        url = `https://${url}`;
+      }
+
+      // Strip trailing slashes
+      return url.replace(/\/+$/, '');
+    }),
+  CORS_ORIGIN: z.string().optional(),
 
   // Database
   DATABASE_URL: z.string().default(

@@ -4,6 +4,8 @@ import { slackNotificationService } from './slack-notification.service.js';
 import { userRepository } from '../auth/user.repository.js';
 import { env } from '../../config/environment.config.js';
 import { ValidationError } from '../../shared/errors/AppError.js';
+import { logger } from '../../shared/logger/structured-logger.js';
+import { buildFrontendRedirectUrl } from '../../shared/utils/redirect.util.js';
 
 export class SlackController {
   private async resolveUserId(req: Request): Promise<string> {
@@ -46,7 +48,7 @@ export class SlackController {
       const error = req.query.error as string;
 
       if (error) {
-        res.redirect(302, `${env.FRONTEND_URL}/dashboard?slack=error&reason=${encodeURIComponent(error)}`);
+        res.redirect(302, buildFrontendRedirectUrl(`/dashboard?slack=error&reason=${encodeURIComponent(error)}`));
         return;
       }
 
@@ -55,9 +57,15 @@ export class SlackController {
       }
 
       await slackOAuthService.handleCallback(code, state);
-      res.redirect(302, `${env.FRONTEND_URL}/dashboard?slack=connected`);
+      res.redirect(302, buildFrontendRedirectUrl('/dashboard?slack=connected'));
     } catch (err) {
-      next(err);
+      logger.error({ err }, 'Error during Slack OAuth callback');
+      res.redirect(
+        302,
+        buildFrontendRedirectUrl(
+          `/dashboard?slack=error&reason=${encodeURIComponent((err as Error)?.message || 'oauth_failed')}`
+        )
+      );
     }
   }
 

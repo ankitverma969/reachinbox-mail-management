@@ -30,7 +30,13 @@ export function createApp(): Express {
     })
   );
 
-  const allowedOrigins = [env.FRONTEND_URL, 'http://localhost:5173', 'http://localhost:3000'];
+  const allowedOrigins = [
+    env.FRONTEND_URL,
+    'https://reachinboxai4u.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    ...(env.CORS_ORIGIN ? [env.CORS_ORIGIN] : [])
+  ];
   app.use(
     cors({
       origin: (origin, callback) => {
