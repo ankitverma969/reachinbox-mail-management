@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://YOUR_AWS_SERVER_IP:5000/api/:path*"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "http://YOUR_AWS_SERVER_IP:5000/admin/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

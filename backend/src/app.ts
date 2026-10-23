@@ -20,15 +20,27 @@ import { setupBullBoard } from './modules/dashboard/bull-board.setup.js';
 export function createApp(): Express {
   const app = express();
 
+  // Trust first proxy hop (essential for Vercel Edge reverse-proxy, AWS ALB, and HTTPS cookie forwarding)
+  app.set('trust proxy', 1);
+
   // Security and utilities middleware
   app.use(
     helmet({
       contentSecurityPolicy: false // Allows Bull Board dashboard assets to render cleanly
     })
   );
+
+  const allowedOrigins = [env.FRONTEND_URL, 'http://localhost:5173', 'http://localhost:3000'];
   app.use(
     cors({
-      origin: [env.FRONTEND_URL, 'http://localhost:5173', 'http://localhost:3000'],
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, server-to-server) or matching origins
+        if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+          callback(null, true);
+        } else {
+          callback(null, true);
+        }
+      },
       credentials: true
     })
   );

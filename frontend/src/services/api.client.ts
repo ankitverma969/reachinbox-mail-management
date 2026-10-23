@@ -1,6 +1,12 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+// If VITE_API_BASE_URL is not set: in local dev use localhost:5000; on Vercel/prod use relative URL '' (for Vercel rewrites proxy)
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL !== undefined
+    ? import.meta.env.VITE_API_BASE_URL
+    : import.meta.env.DEV
+      ? 'http://localhost:5000'
+      : '';
 
 export interface UserProfile {
   id: string;
