@@ -2,7 +2,6 @@ import type { Request, Response, NextFunction } from 'express';
 import { slackOAuthService } from './slack-oauth.service.js';
 import { slackNotificationService } from './slack-notification.service.js';
 import { userRepository } from '../auth/user.repository.js';
-import { env } from '../../config/environment.config.js';
 import { ValidationError } from '../../shared/errors/AppError.js';
 import { logger } from '../../shared/logger/structured-logger.js';
 import { buildFrontendRedirectUrl } from '../../shared/utils/redirect.util.js';
@@ -41,7 +40,7 @@ export class SlackController {
    * Handles Slack OAuth 2.0 callback, exchanging authorization code for credentials.
    * GET /api/v1/integrations/slack/callback
    */
-  async callback(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async callback(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       const code = req.query.code as string;
       const state = req.query.state as string;
