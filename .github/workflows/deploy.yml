@@ -1,4 +1,4 @@
-name: CI/CD Pipeline & AWS Auto-Deploy
+name: CI/CD Pipeline & AWS EC2 Auto-Deploy
 
 on:
   push:
@@ -12,10 +12,10 @@ concurrency:
 
 jobs:
   # -------------------------------------------------------------
-  # Job 1: Test & Quality Gate
+  # Job 1: Automated Quality Gate (Backend & Frontend)
   # -------------------------------------------------------------
   quality-gate:
-    name: Run Automated Tests & Typecheck
+    name: Run Automated Tests & Quality Gate
     runs-on: ubuntu-latest
 
     steps:
@@ -74,63 +74,108 @@ jobs:
         run: npm run build
 
   # -------------------------------------------------------------
-  # Job 2: Deploy to AWS Server (EC2)
+  # Job 2: Secure Deployment to AWS EC2 via SSH
   # -------------------------------------------------------------
-  deploy-to-aws:
-    name: Deploy to AWS Server via SSH
+  deploy-to-ec2:
+    name: Deploy to AWS EC2 via SSH
     needs: quality-gate
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Execute Deployment Commands on AWS Server
+      - name: Execute Production Deployment on AWS EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.AWS_HOST }}
-          username: ${{ secrets.AWS_USER }}
-          key: ${{ secrets.AWS_SSH_KEY }}
-          port: ${{ secrets.AWS_PORT || 22 }}
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
           script_stop: true
-          command_timeout: 10m
+          command_timeout: 15m
           script: |
-            set -e
-            echo "🚀 Starting automated deployment on AWS server..."
-            
-            # Navigate to application repository directory
-            cd ${{ secrets.DEPLOY_PATH || '/home/ubuntu/reachinbox-hiring-assignment' }}
-            
-            # Fetch latest commits from main
-            echo "📥 Pulling latest changes from Git..."
+            set -euo pipefail
+
+            echo "=========================================================="
+            echo "🚀 Starting ReachInbox Backend Deployment on AWS EC2"
+            echo "=========================================================="
+
+            APP_DIR="${{ secrets.DEPLOY_PATH || '/home/ubuntu/reachinbox-hiring-assignment' }}"
+            if [ ! -d "$APP_DIR" ]; then
+              echo "❌ Error: Application directory $APP_DIR does not exist on EC2 server." >&2
+              exit 1
+            fi
+            cd "$APP_DIR"
+            echo "📍 Current working directory: $(pwd)"
+
+            # Verify production .env exists before proceeding without exposing secrets
+            echo "🔍 Verifying production environment configuration..."
+            if [ ! -f .env ]; then
+              echo "❌ Error: Production .env file is missing in $APP_DIR!" >&2
+              echo "   Please create and configure the production .env file on the EC2 host before deploying." >&2
+              exit 1
+            fi
+            echo "✅ Production .env file found and verified (contents secured)."
+
+            # Fetch and reset to latest commits from main
+            echo "📥 Fetching latest code from origin/main..."
             git fetch origin main
+            git checkout main
             git reset --hard origin/main
-            
-            # Verify Docker & Docker Compose are available
-            command -v docker >/dev/null 2>&1 || { echo "Docker is not installed on AWS server!"; exit 1; }
-            
-            # Pull supporting images and rebuild backend container
-            echo "🔨 Building and restarting ReachInbox Backend container..."
-            docker compose pull postgres redis elasticsearch || true
-            docker compose build backend
-            docker compose up -d --remove-orphans
-            
-            # Wait for backend health probe
-            echo "⏳ Waiting for backend container health check..."
-            sleep 10
-            
-            # Apply Prisma migrations inside the running container
-            echo "📦 Running Prisma database migrations..."
-            docker compose exec -T backend npx prisma migrate deploy || docker compose exec -T backend npx prisma db push
-            
-            # Health check verification
-            echo "🩺 Verifying backend health..."
-            docker compose exec -T backend curl -sf http://localhost:5000/api/health || {
-              echo "❌ Health check failed! Inspecting logs:";
-              docker compose logs --tail=50 backend;
-              exit 1;
+
+            # Verify Docker and Docker Compose availability
+            command -v docker >/dev/null 2>&1 || { echo "❌ Error: Docker is not installed on EC2 server!" >&2; exit 1; }
+            command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1 || {
+              echo "❌ Error: Docker Compose is not available on EC2 server!" >&2
+              exit 1
             }
-            
-            # Clean up dangling images to prevent disk exhaustion
-            echo "🧹 Cleaning up unused Docker images..."
+            echo "🐳 Docker: $(docker --version)"
+            echo "🐙 Docker Compose: $(docker compose version)"
+
+            # Pull only required database and cache base images (Elasticsearch skipped)
+            echo "📦 Pulling PostgreSQL and Redis container images..."
+            docker compose pull postgres redis
+
+            # Build production backend container
+            echo "🔨 Building ReachInbox Backend Docker container..."
+            docker compose build backend
+
+            # Start only required services: postgres, redis, and backend (Elasticsearch excluded)
+            echo "🚀 Starting core services (postgres, redis, backend)..."
+            docker compose up -d --remove-orphans postgres redis backend
+
+            # Apply Prisma database migrations (strictly migrate deploy, no db push)
+            echo "📦 Applying Prisma database schema migrations..."
+            sleep 5
+            docker compose exec -T backend npx prisma migrate deploy
+
+            # Verify backend health endpoint with resilient retry loop
+            echo "🩺 Verifying backend health endpoint (http://localhost:5000/api/health)..."
+            HEALTHY=false
+            for attempt in $(seq 1 15); do
+              if docker compose exec -T backend curl -sf http://localhost:5000/api/health >/dev/null 2>&1; then
+                HEALTHY=true
+                echo "✅ Backend health check passed on attempt $attempt."
+                break
+              fi
+              echo "⏳ Waiting for backend to become healthy (attempt $attempt/15)..."
+              sleep 2
+            done
+
+            if [ "$HEALTHY" != "true" ]; then
+              echo "❌ Error: Backend health check failed after 30 seconds!" >&2
+              echo "📋 Backend container logs (last 100 lines):" >&2
+              docker compose logs --tail=100 backend >&2
+              exit 1
+            fi
+
+            # Display active container states
+            echo "📊 Active containers:"
+            docker compose ps
+
+            # Clean up dangling images to prevent disk exhaustion (preserving volumes)
+            echo "🧹 Pruning dangling Docker images to preserve EC2 disk space..."
             docker image prune -f
-            
-            echo "✅ ReachInbox Backend successfully deployed and healthy on AWS!"
+
+            echo "=========================================================="
+            echo "🎉 ReachInbox Backend successfully deployed and active on AWS EC2!"
+            echo "=========================================================="
