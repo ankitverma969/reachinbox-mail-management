@@ -84,15 +84,6 @@ export class EtherealEmailService {
       await transporter.verify();
       return true;
     } catch (err) {
-      const errMessage = (err as Error)?.message || '';
-      if (
-        errMessage.includes('timeout') ||
-        errMessage.includes('ETIMEDOUT') ||
-        errMessage.includes('ECONNREFUSED')
-      ) {
-        logger.warn('SMTP connection timed out on local network port; sandbox fallback is active');
-        return true;
-      }
       logger.error({ err }, 'SMTP connection verification failed');
       return false;
     }
@@ -144,35 +135,6 @@ export class EtherealEmailService {
         },
         'SMTP dispatch failed'
       );
-
-      // If the failure is due to ISP/firewall port blocking (Connection timeout / ETIMEDOUT / ECONNREFUSED)
-      // gracefully complete delivery via Ethereal sandbox simulation to ensure zero message loss
-      const isNetworkTimeout =
-        err.message.includes('timeout') ||
-        err.message.includes('ETIMEDOUT') ||
-        err.message.includes('ECONNREFUSED') ||
-        err.message.includes('ESOCKET');
-
-      if (isNetworkTimeout) {
-        const simulatedMessageId = `<ethereal-${Date.now()}-${Math.random().toString(36).substring(2, 10)}@ethereal.email>`;
-        const simulatedPreviewUrl = `https://ethereal.email/message/${simulatedMessageId.replace(/[<>]/g, '')}`;
-
-        logger.warn(
-          {
-            recipient: options.to,
-            simulatedMessageId,
-            simulatedPreviewUrl
-          },
-          'SMTP port 587/465 unreachable on current host network; delivered successfully via Ethereal sandbox fallback'
-        );
-
-        return {
-          messageId: simulatedMessageId,
-          smtpResponse: '250 2.0.0 OK: message queued (ethereal sandbox fallback)',
-          etherealPreviewUrl: simulatedPreviewUrl
-        };
-      }
-
       throw error;
     }
   }

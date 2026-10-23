@@ -62,6 +62,7 @@ desktop.ini
 # Temporary Files
 tmp/
 temp/
+demo/
 *.tmp
 *.temp
 *.png

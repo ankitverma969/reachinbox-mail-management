@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "test": "vitest run --fileParallelism=false"
+    "test": "vitest run --fileParallelism=false",
+    "test:live": "vitest run tests/live-ethereal.test.ts"
   },
   "dependencies": {
     "@bull-board/api": "^9.10.5",
