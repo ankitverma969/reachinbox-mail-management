@@ -149,4 +149,70 @@ describe('OAuth Redirect Flow Integration Tests', () => {
       );
     });
   });
+
+  describe('Email Login and Auto-Signup', () => {
+    it('should log in existing user successfully', async () => {
+      const req = {
+        body: { email: 'existing@example.com' }
+      } as unknown as Request;
+      const res = createMockRes();
+      const next = vi.fn() as NextFunction;
+
+      vi.spyOn(userRepository, 'findByEmail').mockResolvedValue({
+        id: 'user-uuid-1',
+        googleId: 'google-1',
+        email: 'existing@example.com',
+        name: 'Existing User',
+        avatarUrl: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      await authController.loginWithEmail(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            isNewUser: false,
+            user: expect.objectContaining({ email: 'existing@example.com' })
+          })
+        })
+      );
+    });
+
+    it('should accept fresh email as signup, create user and return session token', async () => {
+      const req = {
+        body: { email: 'fresh.lead@example.com' }
+      } as unknown as Request;
+      const res = createMockRes();
+      const next = vi.fn() as NextFunction;
+
+      vi.spyOn(userRepository, 'findByEmail').mockResolvedValue(null);
+      vi.spyOn(userRepository, 'upsertGoogleUser').mockResolvedValue({
+        id: 'new-uuid-99',
+        googleId: 'email-ZnJlc2gubGVhZEB',
+        email: 'fresh.lead@example.com',
+        name: 'Fresh Lead',
+        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Fresh%20Lead',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      await authController.loginWithEmail(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            isNewUser: true,
+            user: expect.objectContaining({ email: 'fresh.lead@example.com', name: 'Fresh Lead' })
+          })
+        })
+      );
+    });
+  });
 });
+

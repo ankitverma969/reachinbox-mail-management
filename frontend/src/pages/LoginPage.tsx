@@ -76,7 +76,7 @@ export const LoginPage: React.FC = () => {
           </div>
           <div className="relative flex justify-center text-xs">
             <span className="bg-white px-3 text-slate-400 font-normal">
-              or log in with email
+              or sign up / log in with email
             </span>
           </div>
         </div>

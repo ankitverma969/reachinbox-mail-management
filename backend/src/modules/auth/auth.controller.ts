@@ -153,9 +153,9 @@ export class AuthController {
 
   /**
    * Email authentication endpoint.
-   * If the account exists in the database, authenticates the user and issues a session token.
-   * If the account does not exist (fresh email), registration via this endpoint is not accepted,
-   * requiring the user to authenticate via official Google OAuth.
+   * If the account exists in the database, authenticates the user.
+   * If the account does not exist (fresh email), accepts as a signup, creates the user,
+   * and issues a session token.
    * POST /api/v1/auth/login or /api/v1/auth/dev-login
    */
   async loginWithEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -168,26 +168,37 @@ export class AuthController {
       }
 
       // Check if user account already exists in database
-      const user = await userRepository.findByEmail(email);
+      let user = await userRepository.findByEmail(email);
+      let isNewUser = false;
+
+      // If account does not exist, accept as a signup and create user
       if (!user) {
-        res.status(404).json({
-          success: false,
-          error: {
-            code: 'ACCOUNT_NOT_FOUND',
-            message: 'No account found with this email. Please authenticate via official Google OAuth or register first.'
-          }
+        const nameInput = (req.body?.name as string | undefined) || email.split('@')[0] || 'User';
+        const derivedName = nameInput
+          .split(/[._-]/)
+          .map((part) => (part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1) : ''))
+          .filter(Boolean)
+          .join(' ') || 'User';
+
+        user = await userRepository.upsertGoogleUser({
+          googleId: `email-${Buffer.from(email).toString('base64').substring(0, 16)}`,
+          email,
+          name: derivedName,
+          avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(derivedName)}`
         });
-        return;
+        isNewUser = true;
+        logger.info({ userId: user.id, email: user.email }, 'User signed up via email successfully');
+      } else {
+        logger.info({ userId: user.id, email: user.email }, 'User logged in via email successfully');
       }
 
       const token = this.issueSessionToken(res, user);
-
-      logger.info({ userId: user.id, email: user.email }, 'User logged in via email successfully');
 
       res.status(200).json({
         success: true,
         data: {
           token,
+          isNewUser,
           user: {
             id: user.id,
             email: user.email,
