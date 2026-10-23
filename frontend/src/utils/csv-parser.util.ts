@@ -135,12 +135,28 @@ export function parseLeadsContent(content: string): ParsedLeadsResult {
     validEmails.push(email);
   });
 
+  // Global regex fallback for unstructured Excel XML or text content
+  if (validEmails.length === 0) {
+    const globalMatches = trimmed.match(/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g) || [];
+    globalMatches.forEach((raw) => {
+      const email = raw.trim().toLowerCase();
+      if (EMAIL_REGEX.test(email)) {
+        if (!seen.has(email)) {
+          seen.add(email);
+          validEmails.push(email);
+        } else {
+          duplicateCount++;
+        }
+      }
+    });
+  }
+
   return {
     validEmails,
     duplicateCount,
     invalidRows,
-    totalRows: rows.length,
-    previewRows: rows.slice(0, 10)
+    totalRows: rows.length || validEmails.length,
+    previewRows: rows.slice(0, 10).length > 0 ? rows.slice(0, 10) : validEmails.slice(0, 10).map((email) => ({ email }))
   };
 }
 

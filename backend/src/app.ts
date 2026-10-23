@@ -58,8 +58,8 @@ export function createApp(): Express {
   // Core API routes
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/senders', senderRoutes);
-  app.use('/api/v1/emails', emailSchedulingRoutes);
   app.use('/api/v1/emails', emailSearchRoutes);
+  app.use('/api/v1/emails', emailSchedulingRoutes);
   app.use('/api/v1/integrations/slack', slackRoutes);
 
   // Bull Board queue dashboard (Guarded by administrative authentication)
