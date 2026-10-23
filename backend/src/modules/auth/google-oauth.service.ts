@@ -17,19 +17,25 @@ export class GoogleOAuthService {
   /**
    * Generates a CSRF-protected Google OAuth 2.0 authorization URL.
    */
-  async generateAuthorizationUrl(): Promise<{ url: string; state: string }> {
+  async generateAuthorizationUrl(customCallbackUrl?: string): Promise<{ url: string; state: string }> {
     if (!env.GOOGLE_CLIENT_ID) {
       throw new ValidationError(
         'Google OAuth is not configured on this server (GOOGLE_CLIENT_ID is missing)'
       );
     }
 
+    const redirectUri = customCallbackUrl || env.GOOGLE_CALLBACK_URL;
     const state = crypto.randomBytes(24).toString('hex');
-    await this.redis.set(`oauth:google:state:${state}`, 'pending', 'EX', 600); // 10 minute TTL
+    await this.redis.set(
+      `oauth:google:state:${state}`,
+      JSON.stringify({ status: 'pending', redirectUri }),
+      'EX',
+      600
+    ); // 10 minute TTL
 
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
-      redirect_uri: env.GOOGLE_CALLBACK_URL,
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
       state,
@@ -42,30 +48,50 @@ export class GoogleOAuthService {
   }
 
   /**
-   * Validates state parameter to protect against CSRF attacks.
+   * Validates state parameter to protect against CSRF attacks and extracts stored redirectUri.
    */
-  async validateState(state: string): Promise<boolean> {
+  async validateAndConsumeState(state: string): Promise<{ isValid: boolean; redirectUri?: string }> {
     const key = `oauth:google:state:${state}`;
     const value = await this.redis.get(key);
     if (!value) {
-      return false;
+      return { isValid: false };
     }
     await this.redis.del(key);
-    return true;
+
+    try {
+      const parsed = JSON.parse(value);
+      return { isValid: true, redirectUri: parsed.redirectUri };
+    } catch {
+      return { isValid: true };
+    }
+  }
+
+  /**
+   * Validates state parameter to protect against CSRF attacks.
+   */
+  async validateState(state: string): Promise<boolean> {
+    const result = await this.validateAndConsumeState(state);
+    return result.isValid;
   }
 
   /**
    * Exchanges an authorization code with Google OAuth for tokens and profile information.
    */
-  async exchangeCodeForProfile(code: string, state: string): Promise<GoogleUserProfile> {
-    const isValidState = await this.validateState(state);
-    if (!isValidState) {
+  async exchangeCodeForProfile(
+    code: string,
+    state: string,
+    fallbackCallbackUrl?: string
+  ): Promise<GoogleUserProfile> {
+    const stateResult = await this.validateAndConsumeState(state);
+    if (!stateResult.isValid) {
       throw new UnauthorizedError('Invalid or expired OAuth state parameter (CSRF protection)');
     }
 
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
       throw new ValidationError('Google OAuth client credentials are not configured');
     }
+
+    const redirectUri = stateResult.redirectUri || fallbackCallbackUrl || env.GOOGLE_CALLBACK_URL;
 
     // 1. Exchange authorization code for access token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -77,7 +103,7 @@ export class GoogleOAuthService {
         code,
         client_id: env.GOOGLE_CLIENT_ID,
         client_secret: env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: env.GOOGLE_CALLBACK_URL,
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code'
       }).toString()
     });

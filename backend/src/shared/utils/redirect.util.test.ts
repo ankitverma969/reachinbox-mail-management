@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   getSafeFrontendBaseUrl,
   buildFrontendRedirectUrl,
+  resolveOAuthCallbackUrl,
   CANONICAL_PRODUCTION_FRONTEND,
   CANONICAL_DEV_FRONTEND
 } from './redirect.util.js';
@@ -113,6 +114,47 @@ describe('OAuth Redirect URL Security & Formatting Utility', () => {
       expect(redirectUrl).toBe('https://reachinboxai4u.vercel.app/dashboard?login=success');
       expect(redirectUrl).not.toContain('%2A');
       expect(redirectUrl).not.toContain('*');
+    });
+  });
+
+  describe('resolveOAuthCallbackUrl', () => {
+    it('should resolve to Vercel callback URL when request host is vercel.app', () => {
+      const req = {
+        headers: { host: 'reachinboxai4u.vercel.app' }
+      };
+
+      expect(resolveOAuthCallbackUrl(req, 'google')).toBe(
+        'https://reachinboxai4u.vercel.app/api/v1/auth/google/callback'
+      );
+      expect(resolveOAuthCallbackUrl(req, 'slack')).toBe(
+        'https://reachinboxai4u.vercel.app/api/v1/integrations/slack/callback'
+      );
+    });
+
+    it('should resolve to AWS callback URL when request host is 52.23.237.61:5000', () => {
+      const req = {
+        headers: { host: '52.23.237.61:5000' }
+      };
+
+      expect(resolveOAuthCallbackUrl(req, 'google')).toBe(
+        'http://52.23.237.61:5000/api/v1/auth/google/callback'
+      );
+      expect(resolveOAuthCallbackUrl(req, 'slack')).toBe(
+        'http://52.23.237.61:5000/api/v1/integrations/slack/callback'
+      );
+    });
+
+    it('should resolve to Vercel callback URL when x-forwarded-host is vercel.app', () => {
+      const req = {
+        headers: {
+          host: '172.31.16.245:5000',
+          'x-forwarded-host': 'reachinboxai4u.vercel.app'
+        }
+      };
+
+      expect(resolveOAuthCallbackUrl(req, 'google')).toBe(
+        'https://reachinboxai4u.vercel.app/api/v1/auth/google/callback'
+      );
     });
   });
 });

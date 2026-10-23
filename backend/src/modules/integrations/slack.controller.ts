@@ -4,7 +4,7 @@ import { slackNotificationService } from './slack-notification.service.js';
 import { userRepository } from '../auth/user.repository.js';
 import { ValidationError } from '../../shared/errors/AppError.js';
 import { logger } from '../../shared/logger/structured-logger.js';
-import { buildFrontendRedirectUrl } from '../../shared/utils/redirect.util.js';
+import { buildFrontendRedirectUrl, resolveOAuthCallbackUrl } from '../../shared/utils/redirect.util.js';
 
 export class SlackController {
   private async resolveUserId(req: Request): Promise<string> {
@@ -29,7 +29,8 @@ export class SlackController {
   async authorize(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = await this.resolveUserId(req);
-      const { url } = await slackOAuthService.generateAuthorizationUrl(userId);
+      const callbackUrl = resolveOAuthCallbackUrl(req, 'slack');
+      const { url } = await slackOAuthService.generateAuthorizationUrl(userId, callbackUrl);
       res.redirect(302, url);
     } catch (err) {
       next(err);
@@ -55,7 +56,8 @@ export class SlackController {
         throw new ValidationError('Missing required Slack authorization code or state token');
       }
 
-      await slackOAuthService.handleCallback(code, state);
+      const fallbackCallbackUrl = resolveOAuthCallbackUrl(req, 'slack');
+      await slackOAuthService.handleCallback(code, state, fallbackCallbackUrl);
       res.redirect(302, buildFrontendRedirectUrl('/dashboard?slack=connected'));
     } catch (err) {
       logger.error({ err }, 'Error during Slack OAuth callback');

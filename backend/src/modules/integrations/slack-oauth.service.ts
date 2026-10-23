@@ -24,7 +24,7 @@ export class SlackOAuthService {
    * Generates a cryptographically random OAuth state token, caches it in Redis with 10m TTL,
    * and returns the official Slack authorization URL.
    */
-  async generateAuthorizationUrl(userId: string): Promise<{ url: string; state: string }> {
+  async generateAuthorizationUrl(userId: string, customCallbackUrl?: string): Promise<{ url: string; state: string }> {
     if (!env.SLACK_CLIENT_ID) {
       throw new ValidationError('SLACK_CLIENT_ID is not configured in environment variables');
     }
@@ -32,11 +32,12 @@ export class SlackOAuthService {
     const state = crypto.randomBytes(24).toString('hex');
     const stateKey = `slack:oauth:state:${state}`;
 
-    // Store state -> userId binding with 10-minute expiration
-    await this.redisClient.set(stateKey, userId, 'EX', 600);
-
     const redirectUri =
-      env.SLACK_CALLBACK_URL || `http://localhost:${env.PORT}/api/v1/integrations/slack/callback`;
+      customCallbackUrl || env.SLACK_CALLBACK_URL || `http://localhost:${env.PORT}/api/v1/integrations/slack/callback`;
+
+    // Store state -> { userId, redirectUri } binding with 10-minute expiration
+    await this.redisClient.set(stateKey, JSON.stringify({ userId, redirectUri }), 'EX', 600);
+
     const scopes = ['chat:write', 'incoming-webhook'].join(',');
 
     const params = new URLSearchParams({
@@ -55,30 +56,40 @@ export class SlackOAuthService {
    */
   async handleCallback(
     code: string,
-    state: string
+    state: string,
+    fallbackCallbackUrl?: string
   ): Promise<{ teamName: string; channelName: string; userId: string }> {
     if (!code || !state) {
       throw new ValidationError('Missing authorization code or state token');
     }
 
     const stateKey = `slack:oauth:state:${state}`;
-    const userId = await this.redisClient.get(stateKey);
+    const stateData = await this.redisClient.get(stateKey);
 
-    if (!userId) {
+    if (!stateData) {
       throw new UnauthorizedError('Invalid or expired Slack OAuth state parameter');
     }
 
     // Delete state token immediately to prevent replay
     await this.redisClient.del(stateKey);
 
+    let userId = stateData;
+    let redirectUri =
+      fallbackCallbackUrl || env.SLACK_CALLBACK_URL || `http://localhost:${env.PORT}/api/v1/integrations/slack/callback`;
+
+    try {
+      const parsed = JSON.parse(stateData);
+      if (parsed.userId) userId = parsed.userId;
+      if (parsed.redirectUri) redirectUri = parsed.redirectUri;
+    } catch {
+      // Legacy string userId format
+    }
+
     if (!env.SLACK_CLIENT_ID || !env.SLACK_CLIENT_SECRET) {
       throw new ValidationError(
         'Slack OAuth client credentials (SLACK_CLIENT_ID, SLACK_CLIENT_SECRET) are missing'
       );
     }
-
-    const redirectUri =
-      env.SLACK_CALLBACK_URL || `http://localhost:${env.PORT}/api/v1/integrations/slack/callback`;
 
     // Exchange authorization code with Slack OAuth API
     const response = await fetch('https://slack.com/api/oauth.v2.access', {

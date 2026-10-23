@@ -5,7 +5,7 @@ import { userRepository } from './user.repository.js';
 import { env } from '../../config/environment.config.js';
 import { ValidationError, UnauthorizedError } from '../../shared/errors/AppError.js';
 import { logger } from '../../shared/logger/structured-logger.js';
-import { buildFrontendRedirectUrl } from '../../shared/utils/redirect.util.js';
+import { buildFrontendRedirectUrl, resolveOAuthCallbackUrl } from '../../shared/utils/redirect.util.js';
 
 export class AuthController {
   private issueSessionToken(res: Response, user: { id: string; email: string; name: string; avatarUrl?: string | null }): string {
@@ -51,7 +51,8 @@ export class AuthController {
         return;
       }
 
-      const { url } = await googleOAuthService.generateAuthorizationUrl();
+      const callbackUrl = resolveOAuthCallbackUrl(req, 'google');
+      const { url } = await googleOAuthService.generateAuthorizationUrl(callbackUrl);
       res.redirect(url);
     } catch (err) {
       next(err);
@@ -78,7 +79,8 @@ export class AuthController {
         throw new ValidationError('Missing authorization code or state in OAuth callback');
       }
 
-      const profile = await googleOAuthService.exchangeCodeForProfile(code, state);
+      const fallbackCallbackUrl = resolveOAuthCallbackUrl(req, 'google');
+      const profile = await googleOAuthService.exchangeCodeForProfile(code, state, fallbackCallbackUrl);
 
       // Upsert user in database
       const user = await userRepository.upsertGoogleUser({

@@ -62,3 +62,48 @@ export function buildFrontendRedirectUrl(path: string): string {
 
   return `${base}${cleanPath}`;
 }
+
+export const AWS_BACKEND_BASE_URL = 'http://52.23.237.61:5000';
+export const VERCEL_FRONTEND_BASE_URL = 'https://reachinboxai4u.vercel.app';
+
+/**
+ * Resolves the appropriate OAuth callback URL (Google or Slack) dynamically.
+ * Supports both Vercel base URL and AWS EC2 base URL, ensuring that OAuth
+ * callback URLs match the domain the user initiated the flow from.
+ */
+export function resolveOAuthCallbackUrl(
+  req?: { headers?: Record<string, string | string[] | undefined> },
+  type: 'google' | 'slack' = 'google'
+): string {
+  const path = type === 'google' ? '/api/v1/auth/google/callback' : '/api/v1/integrations/slack/callback';
+
+  const hostHeader = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '');
+
+  // 1. If incoming request was proxied via Vercel or originated from Vercel domain
+  if (hostHeader.includes('vercel.app')) {
+    return `${VERCEL_FRONTEND_BASE_URL}${path}`;
+  }
+
+  // 2. If incoming request was directed to AWS EC2 public IP or domain
+  if (hostHeader.includes('52.23.237.61')) {
+    return `${AWS_BACKEND_BASE_URL}${path}`;
+  }
+
+  // 3. If an explicit valid callback is configured in env (e.g. for custom deployments)
+  const configuredEnv = type === 'google' ? env.GOOGLE_CALLBACK_URL : env.SLACK_CALLBACK_URL;
+  if (configuredEnv && !configuredEnv.includes('*') && !configuredEnv.includes('%2A')) {
+    // If running in production on EC2/Vercel and env says localhost, prefer canonical production URL
+    if (env.NODE_ENV === 'production' && configuredEnv.includes('localhost')) {
+      return `${VERCEL_FRONTEND_BASE_URL}${path}`;
+    }
+    return configuredEnv;
+  }
+
+  // 4. Default based on NODE_ENV
+  if (env.NODE_ENV === 'production') {
+    return `${VERCEL_FRONTEND_BASE_URL}${path}`;
+  }
+
+  return `http://localhost:${env.PORT || 5000}${path}`;
+}
+
