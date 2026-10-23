@@ -191,6 +191,31 @@ export class EmailSchedulingController {
       next(err);
     }
   }
+
+  /**
+   * Retrieves single email detail by ID.
+   * GET /api/v1/emails/:id
+   */
+  async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const rawId = req.params.id;
+      const id = Array.isArray(rawId) ? rawId[0] : rawId;
+      if (!id) {
+        throw new ValidationError('Email ID is required');
+      }
+      const data = await emailSchedulingService.getEmailById(id);
+
+      res.status(200).json({
+        success: true,
+        data,
+        meta: {
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const emailSchedulingController = new EmailSchedulingController();

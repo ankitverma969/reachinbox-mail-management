@@ -1,29 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, ExternalLink, Loader2 } from 'lucide-react';
+import { Star, ExternalLink, Loader2, Send } from 'lucide-react';
 import { api, type SentEmailItem } from '../services/api.client';
-
-// Default reference emails matching Figma Screenshot (15) exactly
-const DEFAULT_SENT_ITEMS: SentEmailItem[] = [
-  {
-    id: 'ref-sent-1',
-    recipientEmail: 'sarah.wilson@domain.io',
-    subject: 'Re: Project Update',
-    body: 'Thanks for the update, Sarah. Looks good!',
-    senderEmail: 'oliver.brown@domain.io',
-    sentAt: new Date(Date.now() - 3600000).toISOString(),
-    status: 'SENT'
-  },
-  {
-    id: 'ref-sent-2',
-    recipientEmail: 'support@domain.io',
-    subject: 'Issue with login',
-    body: 'I am having trouble logging in to the dashboard...',
-    senderEmail: 'oliver.brown@domain.io',
-    sentAt: new Date(Date.now() - 7200000).toISOString(),
-    status: 'SENT'
-  }
-];
+import { formatDynamicSentDate } from '../utils/date-formatter.util';
 
 export const SentEmailsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,14 +13,10 @@ export const SentEmailsPage: React.FC = () => {
   const fetchSent = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.getSentEmails({ page: 1, limit: 50 });
-      if (res.data && res.data.length > 0) {
-        setEmails(res.data);
-      } else {
-        setEmails(DEFAULT_SENT_ITEMS);
-      }
+      const res = await api.getSentEmails({ page: 1, limit: 100 });
+      setEmails(res.data || []);
     } catch {
-      setEmails(DEFAULT_SENT_ITEMS);
+      setEmails([]);
     } finally {
       setLoading(false);
     }
@@ -67,13 +42,12 @@ export const SentEmailsPage: React.FC = () => {
     });
   };
 
-  const formatRecipient = (emailStr: string, index: number) => {
-    if (index === 0 && emails === DEFAULT_SENT_ITEMS) return 'Sarah Wilson';
-    if (index === 1 && emails === DEFAULT_SENT_ITEMS) return 'Support';
-
+  const formatRecipient = (emailStr: string) => {
+    if (!emailStr) return 'Recipient';
     const localPart = emailStr.split('@')[0];
     const formatted = localPart
       .split(/[._-]/)
+      .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
     return formatted || emailStr;
@@ -82,13 +56,29 @@ export const SentEmailsPage: React.FC = () => {
   return (
     <div className="w-full">
       {loading ? (
-        <div className="py-12 flex justify-center items-center text-slate-400">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+        <div className="py-16 flex flex-col justify-center items-center text-slate-400 space-y-2">
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
           <span className="text-xs">Loading sent emails...</span>
+        </div>
+      ) : emails.length === 0 ? (
+        <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
+          <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
+            <Send className="w-6 h-6 text-slate-400" />
+          </div>
+          <p className="text-sm font-semibold text-slate-800">No sent emails yet</p>
+          <p className="text-xs text-slate-400 max-w-sm">
+            Emails dispatched by workers via Ethereal or SMTP will appear here along with live delivery timestamps.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard/compose')}
+            className="mt-3 px-5 py-2 rounded-full border border-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 text-[#2E7D32] font-semibold text-xs transition-colors"
+          >
+            Compose New Email
+          </button>
         </div>
       ) : (
         <div className="divide-y divide-slate-100 border-t border-slate-100">
-          {emails.map((email, idx) => (
+          {emails.map((email) => (
             <div
               key={email.id}
               onClick={() => navigate(`/dashboard/email/${email.id}`)}
@@ -97,12 +87,12 @@ export const SentEmailsPage: React.FC = () => {
               <div className="flex items-center space-x-4 min-w-0 flex-1 pr-4">
                 {/* Recipient name (e.g. To: Sarah Wilson) */}
                 <div className="w-36 sm:w-44 flex-shrink-0 text-sm font-semibold text-slate-900 truncate">
-                  To: {formatRecipient(email.recipientEmail, idx)}
+                  To: {formatRecipient(email.recipientEmail)}
                 </div>
 
-                {/* Sent Grey Pill */}
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#ECEFF1] text-[#546E7A] flex-shrink-0">
-                  Sent
+                {/* Sent Green Pill */}
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#E8F5E9] text-[#2E7D32] border border-[#C8E6C9]/60 flex-shrink-0 font-mono">
+                  Sent · {formatDynamicSentDate(email.sentAt)}
                 </span>
 
                 {/* Subject & Preview snippet */}
@@ -110,13 +100,15 @@ export const SentEmailsPage: React.FC = () => {
                   <span className="font-semibold text-slate-900 truncate flex-shrink-0">
                     {email.subject}
                   </span>
-                  <span className="text-slate-400 ml-1.5 truncate">
-                    - {email.body ? email.body.replace(/<[^>]*>/g, '').trim() : ''}
-                  </span>
+                  {email.body && (
+                    <span className="text-slate-400 ml-1.5 truncate">
+                      - {email.body.replace(/<[^>]*>/g, '').trim()}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Action Buttons on right: Ethereal preview (if any) + Star */}
+              {/* Action Icons on right: Ethereal preview link (if available) + Star */}
               <div className="flex items-center space-x-2.5 flex-shrink-0">
                 {email.etherealPreviewUrl && (
                   <a
@@ -124,8 +116,8 @@ export const SentEmailsPage: React.FC = () => {
                     target="_blank"
                     rel="noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="opacity-0 group-hover:opacity-100 text-emerald-600 hover:text-emerald-700 transition-opacity p-1"
-                    title="View Ethereal Email Preview"
+                    className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+                    title="View in Ethereal Mail Viewer"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>

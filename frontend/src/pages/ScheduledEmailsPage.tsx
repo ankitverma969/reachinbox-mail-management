@@ -1,31 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Star, Trash2, Loader2 } from 'lucide-react';
+import { Clock, Star, Trash2, Loader2, Calendar } from 'lucide-react';
 import { api, type ScheduledEmailItem } from '../services/api.client';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
-
-// Default reference emails matching Figma Screenshot (14) exactly
-const DEFAULT_SCHEDULED_ITEMS: ScheduledEmailItem[] = [
-  {
-    id: 'ref-sched-1',
-    recipientEmail: 'john.smith@domain.io',
-    subject: 'Meeting follow-up - Scheduled',
-    body: 'Hi John, just wanted to follow up on our meeting...',
-    senderEmail: 'oliver.brown@domain.io',
-    scheduledAt: new Date(Date.now() + 86400000).toISOString(),
-    status: 'SCHEDULED'
-  },
-  {
-    id: 'ref-sched-2',
-    recipientEmail: 'olive@domain.io',
-    subject: "Ramit, great to meet you - you'll love it",
-    body: 'Hi Olive, just wanted to follow up on our meeting...',
-    senderEmail: 'oliver.brown@domain.io',
-    scheduledAt: new Date(Date.now() + 172800000).toISOString(),
-    status: 'SCHEDULED'
-  }
-];
+import { formatDynamicScheduledDate } from '../utils/date-formatter.util';
 
 export const ScheduledEmailsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -40,14 +19,10 @@ export const ScheduledEmailsPage: React.FC = () => {
   const fetchScheduled = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.getScheduledEmails({ page: 1, limit: 50 });
-      if (res.data && res.data.length > 0) {
-        setEmails(res.data);
-      } else {
-        setEmails(DEFAULT_SCHEDULED_ITEMS);
-      }
+      const res = await api.getScheduledEmails({ page: 1, limit: 100 });
+      setEmails(res.data || []);
     } catch {
-      setEmails(DEFAULT_SCHEDULED_ITEMS);
+      setEmails([]);
     } finally {
       setLoading(false);
     }
@@ -67,12 +42,11 @@ export const ScheduledEmailsPage: React.FC = () => {
     if (!emailToCancel) return;
     setIsCancelling(true);
     try {
-      if (!emailToCancel.id.startsWith('ref-')) {
-        await api.cancelScheduledEmail(emailToCancel.id);
-      }
+      await api.cancelScheduledEmail(emailToCancel.id);
       toastSuccess('Job Cancelled', `Scheduled email to ${emailToCancel.recipientEmail} has been cancelled.`);
       setEmails((prev) => prev.filter((item) => item.id !== emailToCancel.id));
       setEmailToCancel(null);
+      window.dispatchEvent(new CustomEvent('reachinbox:refresh'));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Cancellation failed';
       toastError('Cancellation Error', message);
@@ -91,37 +65,12 @@ export const ScheduledEmailsPage: React.FC = () => {
     });
   };
 
-  const formatScheduledTime = (dateStr: string, index: number) => {
-    // For default reference items, match exact Figma screenshot text
-    if (index === 0 && dateStr.startsWith('ref') || index === 0 && emails === DEFAULT_SCHEDULED_ITEMS) {
-      return 'Tue 9:15:12 AM';
-    }
-    if (index === 1 && dateStr.startsWith('ref') || index === 1 && emails === DEFAULT_SCHEDULED_ITEMS) {
-      return 'Thu 8:15:12 PM';
-    }
-
-    try {
-      const date = new Date(dateStr);
-      const day = date.toLocaleDateString('en-US', { weekday: 'short' });
-      const time = date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      });
-      return `${day} ${time}`;
-    } catch {
-      return 'Tue 9:15:12 AM';
-    }
-  };
-
-  const formatRecipient = (emailStr: string, index: number) => {
-    if (index === 0 && emails === DEFAULT_SCHEDULED_ITEMS) return 'John Smith';
-    if (index === 1 && emails === DEFAULT_SCHEDULED_ITEMS) return 'Olive';
-
+  const formatRecipient = (emailStr: string) => {
+    if (!emailStr) return 'Recipient';
     const localPart = emailStr.split('@')[0];
     const formatted = localPart
       .split(/[._-]/)
+      .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
     return formatted || emailStr;
@@ -133,7 +82,7 @@ export const ScheduledEmailsPage: React.FC = () => {
       <ConfirmationModal
         isOpen={!!emailToCancel}
         title="Cancel Scheduled Email?"
-        message={`Are you sure you want to cancel the scheduled email to "${emailToCancel?.recipientEmail}"? This will remove the job from Redis queue.`}
+        message={`Are you sure you want to cancel the scheduled email to "${emailToCancel?.recipientEmail}"? This will permanently remove the delayed dispatch job from the queue.`}
         confirmLabel="Cancel Email Job"
         isDestructive={true}
         isLoading={isCancelling}
@@ -142,13 +91,29 @@ export const ScheduledEmailsPage: React.FC = () => {
       />
 
       {loading ? (
-        <div className="py-12 flex justify-center items-center text-slate-400">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+        <div className="py-16 flex flex-col justify-center items-center text-slate-400 space-y-2">
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
           <span className="text-xs">Loading scheduled emails...</span>
+        </div>
+      ) : emails.length === 0 ? (
+        <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
+          <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
+            <Calendar className="w-6 h-6 text-slate-400" />
+          </div>
+          <p className="text-sm font-semibold text-slate-800">No scheduled emails</p>
+          <p className="text-xs text-slate-400 max-w-sm">
+            When you schedule an outreach campaign, pending jobs and delayed delivery slots will appear here in real time.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard/compose')}
+            className="mt-3 px-5 py-2 rounded-full border border-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 text-[#2E7D32] font-semibold text-xs transition-colors"
+          >
+            Compose New Email
+          </button>
         </div>
       ) : (
         <div className="divide-y divide-slate-100 border-t border-slate-100">
-          {emails.map((email, idx) => (
+          {emails.map((email) => (
             <div
               key={email.id}
               onClick={() => navigate(`/dashboard/email/${email.id}`)}
@@ -157,13 +122,13 @@ export const ScheduledEmailsPage: React.FC = () => {
               <div className="flex items-center space-x-4 min-w-0 flex-1 pr-4">
                 {/* Recipient name (e.g. To: John Smith) */}
                 <div className="w-36 sm:w-44 flex-shrink-0 text-sm font-semibold text-slate-900 truncate">
-                  To: {formatRecipient(email.recipientEmail, idx)}
+                  To: {formatRecipient(email.recipientEmail)}
                 </div>
 
-                {/* Scheduled Amber Pill with Clock Icon */}
-                <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FFF3E0] text-[#D9531E] border border-[#FFE0B2]/60 flex-shrink-0">
+                {/* Scheduled Amber Pill with Clock Icon - Dynamic Date */}
+                <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FFF3E0] text-[#D9531E] border border-[#FFE0B2]/60 flex-shrink-0 font-mono">
                   <Clock className="w-3 h-3 text-[#D9531E]" />
-                  <span>{formatScheduledTime(email.scheduledAt, idx)}</span>
+                  <span>{formatDynamicScheduledDate(email.scheduledAt)}</span>
                 </span>
 
                 {/* Subject & Preview snippet */}
@@ -171,9 +136,11 @@ export const ScheduledEmailsPage: React.FC = () => {
                   <span className="font-semibold text-slate-900 truncate flex-shrink-0">
                     {email.subject}
                   </span>
-                  <span className="text-slate-400 ml-1.5 truncate">
-                    - {email.body ? email.body.replace(/<[^>]*>/g, '').trim() : 'Hi, just wanted to follow up on our meeting...'}
-                  </span>
+                  {email.body && (
+                    <span className="text-slate-400 ml-1.5 truncate">
+                      - {email.body.replace(/<[^>]*>/g, '').trim()}
+                    </span>
+                  )}
                 </div>
               </div>
 

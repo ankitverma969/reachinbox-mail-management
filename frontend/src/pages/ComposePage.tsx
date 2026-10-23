@@ -6,6 +6,7 @@ import {
   Clock,
   ChevronDown,
   Upload,
+  X,
   Undo2,
   Redo2,
   Type,
@@ -20,9 +21,10 @@ import {
   Outdent,
   Quote,
   Code,
-  Strikethrough
+  Strikethrough,
+  FileText
 } from 'lucide-react';
-import { api } from '../services/api.client';
+import { api, type SenderIdentityItem } from '../services/api.client';
 import { parseLeadsContent } from '../utils/csv-parser.util';
 import { useToast } from '../context/ToastContext';
 
@@ -30,32 +32,38 @@ export const ComposePage: React.FC = () => {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedSenderEmail, setSelectedSenderEmail] = useState<string>('oliver.brown@domain.io');
+  const [senders, setSenders] = useState<SenderIdentityItem[]>([]);
   const [selectedSenderId, setSelectedSenderId] = useState<string>('');
+  const [selectedSenderEmail, setSelectedSenderEmail] = useState<string>('');
+  const [senderDropdownOpen, setSenderDropdownOpen] = useState<boolean>(false);
 
-  // Mode: if true, show ingested lead chips (Screenshot 18), if false, show text input (Screenshot 17)
-  const [showLeadChips, setShowLeadChips] = useState<boolean>(true);
-  const [recipients, setRecipients] = useState<string[]>([
-    'tame@jmail.com',
-    'lame@jmail.com',
-    'dame@jmail.com',
-    'lead4@jmail.com',
-    'lead5@jmail.com',
-    'lead6@jmail.com',
-    'lead7@jmail.com'
-  ]);
-  const [singleRecipient, setSingleRecipient] = useState<string>('');
+  // Dynamic recipients list
+  const [recipients, setRecipients] = useState<string[]>([]);
+  const [recipientInput, setRecipientInput] = useState<string>('');
 
   const [subject, setSubject] = useState<string>('');
-  const [delayBetweenEmails, setDelayBetweenEmails] = useState<string>('00');
-  const [hourlyLimit, setHourlyLimit] = useState<string>('00');
+  const [delayBetweenEmails, setDelayBetweenEmails] = useState<string>('2');
+  const [hourlyLimit, setHourlyLimit] = useState<string>('100');
   const [body, setBody] = useState<string>('');
+
+  // Attachments
+  const [attachments, setAttachments] = useState<File[]>([]);
 
   // Send Later Popover state
   const [isSendLaterOpen, setIsSendLaterOpen] = useState<boolean>(false);
-  const [scheduledDate, setScheduledDate] = useState<string>('');
-  const [selectedPreset, setSelectedPreset] = useState<string>('Tomorrow, 10:00 AM');
+  const [scheduledDate, setScheduledDate] = useState<string>(() => {
+    // Default to tomorrow 9:00 AM in local timezone
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    const localIso = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+    return localIso;
+  });
+  const [selectedPreset, setSelectedPreset] = useState<string>('Tomorrow, 9:00 AM');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
@@ -65,16 +73,19 @@ export const ComposePage: React.FC = () => {
   const loadSenders = async () => {
     try {
       const list = await api.getSenders();
+      setSenders(list);
       if (list.length > 0) {
         setSelectedSenderId(list[0].id);
         setSelectedSenderEmail(list[0].emailAddress);
+        setHourlyLimit(String(list[0].hourlyRateLimit || 100));
+        setDelayBetweenEmails(String(list[0].minDelaySeconds || 2));
       }
     } catch {
-      // Fallback
+      // Offline fallback
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -82,37 +93,92 @@ export const ComposePage: React.FC = () => {
       const text = await file.text();
       const result = parseLeadsContent(text);
       if (result.validEmails.length > 0) {
-        setRecipients(result.validEmails);
-        setShowLeadChips(true);
-        toastSuccess('Leads Imported', `Successfully imported ${result.validEmails.length} recipients`);
+        setRecipients((prev) => Array.from(new Set([...prev, ...result.validEmails])));
+        toastSuccess('Leads Imported', `Imported ${result.validEmails.length} valid recipient emails from ${file.name}`);
       } else {
-        toastError('Import Error', 'No valid email addresses found in CSV');
+        toastError('Import Error', 'No valid email addresses found in CSV file');
       }
     } catch {
       toastError('Import Error', 'Failed to read CSV file');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const toggleLeadMode = () => {
-    setShowLeadChips(!showLeadChips);
+  const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files);
+    setAttachments((prev) => [...prev, ...newFiles]);
+    toastSuccess('Attachment Added', `Attached ${newFiles.length} file(s)`);
+    if (attachmentInputRef.current) attachmentInputRef.current.value = '';
   };
 
-  const handlePresetSelect = (presetLabel: string) => {
-    setSelectedPreset(presetLabel);
-    const target = new Date();
-    target.setDate(target.getDate() + 1);
-
-    if (presetLabel.includes('10:00 AM')) {
-      target.setHours(10, 0, 0, 0);
-    } else if (presetLabel.includes('11:00 AM')) {
-      target.setHours(11, 0, 0, 0);
-    } else if (presetLabel.includes('3:00 PM')) {
-      target.setHours(15, 0, 0, 0);
-    } else {
-      target.setHours(9, 0, 0, 0);
+  const handleAddRecipient = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = recipientInput.trim().replace(/,$/, '');
+      if (val && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        if (!recipients.includes(val)) {
+          setRecipients((prev) => [...prev, val]);
+        }
+        setRecipientInput('');
+      } else if (val) {
+        toastError('Invalid Email', 'Please enter a valid email format');
+      }
     }
+  };
 
-    const localISO = new Date(target.getTime() - target.getTimezoneOffset() * 60000)
+  const removeRecipient = (indexToRemove: number) => {
+    setRecipients((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const removeAttachment = (indexToRemove: number) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // Dynamic Presets generated from current date
+  const getDynamicPresets = () => {
+    const now = new Date();
+    const laterToday = new Date(now.getTime() + 2 * 3600000);
+
+    const tomorrowMorning = new Date(now);
+    tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+    tomorrowMorning.setHours(9, 0, 0, 0);
+
+    const tomorrowAfternoon = new Date(now);
+    tomorrowAfternoon.setDate(tomorrowAfternoon.getDate() + 1);
+    tomorrowAfternoon.setHours(14, 0, 0, 0);
+
+    const nextMonday = new Date(now);
+    const day = nextMonday.getDay();
+    const daysUntilMonday = (1 + 7 - day) % 7 || 7;
+    nextMonday.setDate(nextMonday.getDate() + daysUntilMonday);
+    nextMonday.setHours(9, 0, 0, 0);
+
+    return [
+      {
+        label: `Later Today, ${laterToday.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
+        date: laterToday
+      },
+      {
+        label: 'Tomorrow, 9:00 AM',
+        date: tomorrowMorning
+      },
+      {
+        label: 'Tomorrow, 2:00 PM',
+        date: tomorrowAfternoon
+      },
+      {
+        label: `Next Monday, 9:00 AM (${nextMonday.toLocaleDateString([], { month: 'short', day: 'numeric' })})`,
+        date: nextMonday
+      }
+    ];
+  };
+
+  const handlePresetSelect = (preset: { label: string; date: Date }) => {
+    setSelectedPreset(preset.label);
+    const localISO = new Date(preset.date.getTime() - preset.date.getTimezoneOffset() * 60000)
       .toISOString()
       .slice(0, 16);
     setScheduledDate(localISO);
@@ -121,20 +187,24 @@ export const ComposePage: React.FC = () => {
   const handleSendLater = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    const targetRecipients = showLeadChips
-      ? recipients
-      : singleRecipient.trim() ? [singleRecipient.trim()] : [];
+    // Include single input if typed but not confirmed
+    let targetRecipients = [...recipients];
+    if (recipientInput.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientInput.trim())) {
+      if (!targetRecipients.includes(recipientInput.trim())) {
+        targetRecipients.push(recipientInput.trim());
+      }
+    }
 
     if (targetRecipients.length === 0) {
-      toastError('Validation Error', 'Please enter at least one recipient email or upload a list');
+      toastError('Validation Error', 'Please enter at least one recipient email address or upload a CSV lead list');
       return;
     }
     if (!subject.trim()) {
-      toastError('Validation Error', 'Please enter an email subject');
+      toastError('Validation Error', 'Please enter an email subject line');
       return;
     }
     if (!body.trim()) {
-      toastError('Validation Error', 'Please write your email message');
+      toastError('Validation Error', 'Please enter your email message body');
       return;
     }
 
@@ -142,15 +212,15 @@ export const ComposePage: React.FC = () => {
     try {
       const scheduledAtIso = scheduledDate
         ? new Date(scheduledDate).toISOString()
-        : new Date(Date.now() + 86400000).toISOString();
+        : new Date(Date.now() + 3600000).toISOString();
 
       await api.scheduleCampaign({
-        senderId: selectedSenderId || 'default',
+        senderId: selectedSenderId || (senders[0]?.id ?? 'default'),
         subject: subject.trim(),
         body: body.trim(),
         recipients: targetRecipients,
         scheduledAt: scheduledAtIso,
-        delayBetweenEmails: Number(delayBetweenEmails) || 0,
+        delayBetweenEmails: Number(delayBetweenEmails) || 2,
         hourlyLimit: Number(hourlyLimit) || 100
       });
 
@@ -167,17 +237,24 @@ export const ComposePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans antialiased relative px-8 py-6">
-      {/* Hidden CSV file upload input */}
+      {/* Hidden file inputs */}
       <input
         type="file"
         ref={fileInputRef}
-        onChange={(e) => void handleFileUpload(e)}
+        onChange={(e) => void handleCsvUpload(e)}
         accept=".csv,text/csv"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={attachmentInputRef}
+        onChange={handleAttachmentUpload}
+        multiple
         className="hidden"
       />
 
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between pb-6">
+      <div className="flex items-center justify-between pb-6 border-b border-slate-100">
         {/* Left: Back button + Title */}
         <div className="flex items-center space-x-3.5">
           <button
@@ -193,13 +270,24 @@ export const ComposePage: React.FC = () => {
           </h1>
         </div>
 
-        {/* Right: Green Attachment badge (1), Clock Schedule Icon, Send Later Outline Button */}
+        {/* Right Action Bar */}
         <div className="flex items-center space-x-4">
-          {/* Green Attachment Icon with Badge 1 */}
-          <div className="flex items-center text-[#2E7D32] space-x-0.5 cursor-pointer" title="1 Attachment attached">
+          {/* Dynamic Attachment Icon & Badge */}
+          <button
+            type="button"
+            onClick={() => attachmentInputRef.current?.click()}
+            className={`flex items-center space-x-1 cursor-pointer transition-colors p-1 ${
+              attachments.length > 0 ? 'text-[#2E7D32]' : 'text-slate-400 hover:text-slate-700'
+            }`}
+            title={attachments.length > 0 ? `${attachments.length} attachment(s) attached` : 'Attach file'}
+          >
             <Paperclip className="w-4 h-4 transform rotate-45" />
-            <span className="text-[11px] font-bold">1</span>
-          </div>
+            {attachments.length > 0 && (
+              <span className="text-[11px] font-bold font-mono bg-emerald-50 text-[#2E7D32] px-1.5 py-0.2 rounded-full border border-emerald-200">
+                {attachments.length}
+              </span>
+            )}
+          </button>
 
           {/* Clock icon to toggle Send Later popover */}
           <button
@@ -208,17 +296,17 @@ export const ComposePage: React.FC = () => {
             className={`p-1 transition-colors ${
               isSendLaterOpen ? 'text-[#2E7D32]' : 'text-slate-700 hover:text-slate-900'
             }`}
-            title="Send Later Options"
+            title="Schedule Delivery Time"
           >
             <Clock className="w-4 h-4" />
           </button>
 
-          {/* Send Later Button (exact match to Screenshot 17 & 18) */}
+          {/* Send Later Button */}
           <button
             type="button"
             onClick={() => void handleSendLater()}
             disabled={isSubmitting}
-            className="rounded-full border border-[#2E7D32] text-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 px-5 py-1 text-sm font-medium transition-colors shadow-none disabled:opacity-50"
+            className="rounded-full border border-[#2E7D32] text-[#2E7D32] bg-white hover:bg-[#E8F5E9]/50 px-5 py-1 text-sm font-semibold transition-colors shadow-none disabled:opacity-50"
           >
             {isSubmitting ? 'Scheduling...' : 'Send Later'}
           </button>
@@ -226,67 +314,90 @@ export const ComposePage: React.FC = () => {
       </div>
 
       {/* Main Form Fields */}
-      <div className="max-w-4xl space-y-4 pt-1">
-        {/* From Row */}
+      <div className="max-w-4xl space-y-4 pt-4">
+        {/* From Row with Dynamic Sender Select */}
         <div className="flex items-center">
           <label className="w-20 text-xs font-semibold text-slate-500">From</label>
           <div className="relative">
             <button
               type="button"
-              className="bg-[#F4F5F6] text-xs font-medium text-slate-800 rounded-xl px-3.5 py-1.5 flex items-center space-x-2"
+              onClick={() => setSenderDropdownOpen(!senderDropdownOpen)}
+              className="bg-[#F4F5F6] text-xs font-medium text-slate-800 rounded-xl px-3.5 py-1.5 flex items-center space-x-2 hover:bg-slate-200 transition-colors"
             >
-              <span>{selectedSenderEmail}</span>
+              <span>{selectedSenderEmail || 'Select Sender Account'}</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
             </button>
+
+            {senderDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-lg border border-slate-200 p-1 z-30 min-w-[240px] text-xs">
+                {senders.length === 0 ? (
+                  <div className="p-3 text-slate-400 text-center">No sender accounts configured</div>
+                ) : (
+                  senders.map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => {
+                        setSelectedSenderId(s.id);
+                        setSelectedSenderEmail(s.emailAddress);
+                        setHourlyLimit(String(s.hourlyRateLimit || 100));
+                        setDelayBetweenEmails(String(s.minDelaySeconds || 2));
+                        setSenderDropdownOpen(false);
+                      }}
+                      className="px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-800">{s.displayName}</p>
+                        <p className="text-[11px] text-slate-400">{s.emailAddress}</p>
+                      </div>
+                      {s.id === selectedSenderId && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* To Row (with Chips and 'Upload List' CTA) */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <div className="flex items-center space-x-2 flex-1 min-w-0 pr-4">
-            <label className="w-20 text-xs font-semibold text-slate-500 flex-shrink-0">To</label>
-            {showLeadChips ? (
-              <div className="flex items-center flex-wrap gap-1.5">
-                {/* First 3 ingested chips */}
-                {recipients.slice(0, 3).map((email) => (
-                  <span
-                    key={email}
-                    className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-[#E8F5E9] text-[#2E7D32] border border-[#C8E6C9]"
+        {/* To Row with Dynamic Chips and CSV Upload */}
+        <div className="flex items-start justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-start space-x-2 flex-1 min-w-0 pr-4">
+            <label className="w-20 text-xs font-semibold text-slate-500 pt-1.5 flex-shrink-0">To</label>
+            <div className="flex-1 flex items-center flex-wrap gap-1.5 min-h-[32px]">
+              {recipients.map((email, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center space-x-1 px-3 py-0.5 rounded-full text-xs font-medium bg-[#E8F5E9] text-[#2E7D32] border border-[#C8E6C9]"
+                >
+                  <span>{email}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeRecipient(idx)}
+                    className="hover:text-rose-600 transition-colors"
                   >
-                    {email}
-                  </span>
-                ))}
-                {/* Remainder badge (+4) */}
-                {recipients.length > 3 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[#E8F5E9] text-[#2E7D32] border border-[#C8E6C9]">
-                    +{recipients.length - 3}
-                  </span>
-                )}
-              </div>
-            ) : (
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+
               <input
                 type="text"
-                value={singleRecipient}
-                onChange={(e) => setSingleRecipient(e.target.value)}
-                placeholder="recipient@example.com"
-                className="flex-1 text-xs text-slate-800 placeholder-slate-400 border-none focus:outline-none bg-transparent"
+                value={recipientInput}
+                onChange={(e) => setRecipientInput(e.target.value)}
+                onKeyDown={handleAddRecipient}
+                placeholder={recipients.length === 0 ? "Enter recipient email and press Enter..." : "Add another..."}
+                className="flex-1 min-w-[200px] text-xs text-slate-800 placeholder-slate-400 border-none focus:outline-none bg-transparent py-1"
               />
-            )}
+            </div>
           </div>
 
           {/* Upload List CTA button */}
           <button
             type="button"
-            onClick={() => {
-              if (fileInputRef.current) {
-                fileInputRef.current.click();
-              } else {
-                toggleLeadMode();
-              }
-            }}
-            onDoubleClick={toggleLeadMode}
-            className="text-[#2E7D32] hover:text-[#1B5E20] flex items-center space-x-1 text-xs font-medium transition-colors flex-shrink-0 cursor-pointer"
-            title="Upload CSV lead list (click to upload, double click to toggle chips)"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-[#2E7D32] hover:text-[#1B5E20] flex items-center space-x-1 text-xs font-semibold transition-colors flex-shrink-0 cursor-pointer pt-1"
+            title="Upload CSV lead list"
           >
             <Upload className="w-3.5 h-3.5" />
             <span>Upload List</span>
@@ -300,38 +411,40 @@ export const ComposePage: React.FC = () => {
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject"
-            className="flex-1 text-xs text-slate-800 placeholder-slate-400 border-none focus:outline-none bg-transparent"
+            placeholder="Exploring Strategic Partnerships..."
+            className="flex-1 text-xs text-slate-900 placeholder-slate-400 border-none focus:outline-none bg-transparent font-medium"
           />
         </div>
 
-        {/* Delay & Limit Row */}
-        <div className="flex items-center space-x-6 text-xs text-slate-700 py-1">
+        {/* Delay and Hourly Limit Controls */}
+        <div className="flex items-center space-x-8 text-xs text-slate-600 pt-1">
           <div className="flex items-center space-x-2">
-            <span className="font-medium text-slate-800">Delay between 2 emails</span>
+            <span className="font-medium text-slate-700">Delay Between Emails (sec)</span>
             <input
-              type="text"
+              type="number"
+              min="0"
               value={delayBetweenEmails}
               onChange={(e) => setDelayBetweenEmails(e.target.value)}
-              className="w-14 h-9 bg-[#F4F5F6] rounded-xl text-center text-xs font-mono border-none focus:outline-none"
+              className="w-16 h-8 bg-[#F4F5F6] rounded-xl text-center text-xs font-mono border-none focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="font-medium text-slate-800">Hourly Limit</span>
+            <span className="font-medium text-slate-700">Hourly Quota Limit</span>
             <input
-              type="text"
+              type="number"
+              min="1"
               value={hourlyLimit}
               onChange={(e) => setHourlyLimit(e.target.value)}
-              className="w-14 h-9 bg-[#F4F5F6] rounded-xl text-center text-xs font-mono border-none focus:outline-none"
+              className="w-16 h-8 bg-[#F4F5F6] rounded-xl text-center text-xs font-mono border-none focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
         </div>
 
-        {/* Rich Text Editor Container with Floating White Pill Toolbar */}
-        <div className="mt-4 bg-[#F8F9FA] rounded-2xl p-4 border border-slate-100 min-h-[360px] flex flex-col">
-          {/* White Pill Floating Toolbar matching Screenshots 17 & 18 */}
-          <div className="bg-white rounded-full px-4 py-2 border border-slate-100 shadow-sm flex items-center flex-wrap gap-2.5 text-slate-400 mb-4 w-fit">
+        {/* Editor Container */}
+        <div className="mt-4 bg-[#F8F9FA] rounded-2xl p-4 border border-slate-100 min-h-[340px] flex flex-col">
+          {/* Floating Toolbar */}
+          <div className="bg-white rounded-full px-4 py-2 border border-slate-100 shadow-sm flex items-center flex-wrap gap-2.5 text-slate-400 mb-3 w-fit">
             <button type="button" className="p-0.5 hover:text-slate-600"><Undo2 className="w-3.5 h-3.5" /></button>
             <button type="button" className="p-0.5 hover:text-slate-600"><Redo2 className="w-3.5 h-3.5" /></button>
             <span className="h-3 w-[1px] bg-slate-200 mx-0.5" />
@@ -361,80 +474,95 @@ export const ComposePage: React.FC = () => {
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Type Your Reply..."
+            placeholder="Type your outreach email content here..."
             rows={10}
             className="w-full flex-1 bg-transparent text-xs text-slate-800 placeholder-slate-400 border-none focus:outline-none resize-none leading-relaxed"
           />
         </div>
 
-        {/* Attachment Card Thumbnail at Bottom-Left matching Figma Reference */}
-        <div className="pt-2">
-          <div className="w-36 rounded-xl overflow-hidden border border-slate-200/80 bg-white shadow-sm">
-            <div className="h-20 bg-slate-100 overflow-hidden">
-              <img
-                src="https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?w=400&auto=format&fit=crop&q=80"
-                alt="Attachment preview"
-                className="w-full h-full object-cover"
-              />
+        {/* Dynamic Attachment Chips List (only if files attached) */}
+        {attachments.length > 0 && (
+          <div className="pt-2">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Attachments ({attachments.length})</p>
+            <div className="flex items-center flex-wrap gap-2">
+              {attachments.map((file, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white shadow-sm text-xs text-slate-700"
+                >
+                  <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="truncate max-w-[150px] font-medium">{file.name}</span>
+                  <span className="text-[10px] text-slate-400">({(file.size / 1024).toFixed(1)} KB)</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(idx)}
+                    className="text-slate-400 hover:text-rose-500 ml-1"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Send Later Popover (opened when clicking Clock icon) */}
+      {/* Send Later Popover with Dynamic Presets */}
       {isSendLaterOpen && (
-        <div className="absolute top-16 right-8 w-72 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-5 z-50 animate-fade-in font-sans">
-          <h3 className="text-sm font-semibold text-slate-900 mb-3">
-            Send Later
-          </h3>
+        <div className="absolute top-16 right-8 w-80 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-5 z-50 animate-fade-in font-sans">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Schedule Delivery Time
+            </h3>
+            <button
+              onClick={() => setIsSendLaterOpen(false)}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
           {/* Date & Time Picker */}
-          <div className="relative mb-3">
+          <div className="mb-4">
+            <label className="text-[11px] text-slate-400 block mb-1">Pick Exact Time</label>
             <input
               type="datetime-local"
               value={scheduledDate}
-              onChange={(e) => setScheduledDate(e.target.value)}
-              className="w-full text-xs text-slate-700 placeholder-slate-400 border-b border-slate-200 pb-1.5 focus:outline-none"
+              onChange={(e) => {
+                setScheduledDate(e.target.value);
+                setSelectedPreset('');
+              }}
+              className="w-full text-xs text-slate-800 bg-slate-50 rounded-lg p-2 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
-          {/* Presets */}
-          <div className="space-y-2.5 my-4 text-xs text-slate-600">
-            {[
-              'Tomorrow',
-              'Tomorrow, 10:00 AM',
-              'Tomorrow, 11:00 AM',
-              'Tomorrow, 3:00 PM'
-            ].map((preset) => (
+          {/* Dynamic Calculated Presets */}
+          <div className="space-y-1.5 mb-4 text-xs text-slate-700">
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Quick Presets</p>
+            {getDynamicPresets().map((preset) => (
               <div
-                key={preset}
+                key={preset.label}
                 onClick={() => handlePresetSelect(preset)}
-                className={`cursor-pointer py-1 hover:text-slate-900 transition-colors ${
-                  selectedPreset === preset ? 'font-medium text-slate-900' : ''
+                className={`cursor-pointer py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-between ${
+                  selectedPreset === preset.label ? 'bg-emerald-50 text-emerald-800 font-semibold' : ''
                 }`}
               >
-                {preset}
+                <span>{preset.label}</span>
+                {selectedPreset === preset.label && <span className="text-xs text-emerald-600">✓</span>}
               </div>
             ))}
           </div>
 
-          {/* Popover Footer Buttons */}
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsSendLaterOpen(false)}
-              className="text-xs font-medium text-slate-700 hover:text-slate-900 px-2 py-1"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsSendLaterOpen(false)}
-              className="rounded-full border border-[#2E7D32] text-[#2E7D32] bg-white hover:bg-emerald-50 px-4 py-1 text-xs font-medium transition-colors"
-            >
-              Done
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSendLaterOpen(false);
+              toastSuccess('Time Selected', `Scheduled for ${scheduledDate.replace('T', ' ')}`);
+            }}
+            className="w-full py-2 bg-[#2E7D32] hover:bg-[#1B5E20] text-white rounded-xl text-xs font-semibold transition-colors shadow-sm"
+          >
+            Apply Schedule
+          </button>
         </div>
       )}
     </div>

@@ -24,8 +24,8 @@ export const DashboardLayout: React.FC = () => {
 
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [scheduledCount, setScheduledCount] = useState<number>(12);
-  const [sentCount, setSentCount] = useState<number>(785);
+  const [scheduledCount, setScheduledCount] = useState<number>(0);
+  const [sentCount, setSentCount] = useState<number>(0);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,14 +47,14 @@ export const DashboardLayout: React.FC = () => {
         api.getSentEmails({ limit: 1 })
       ]);
 
-      if (scheduledRes.status === 'fulfilled' && scheduledRes.value.pagination.totalRecords > 0) {
-        setScheduledCount(scheduledRes.value.pagination.totalRecords);
+      if (scheduledRes.status === 'fulfilled') {
+        setScheduledCount(scheduledRes.value.pagination.totalRecords || 0);
       }
-      if (sentRes.status === 'fulfilled' && sentRes.value.pagination.totalRecords > 0) {
-        setSentCount(sentRes.value.pagination.totalRecords);
+      if (sentRes.status === 'fulfilled') {
+        setSentCount(sentRes.value.pagination.totalRecords || 0);
       }
     } catch {
-      // Keep reference counts
+      // Retain active count
     }
   };
 
@@ -124,17 +124,23 @@ export const DashboardLayout: React.FC = () => {
               className="w-full bg-[#F4F5F6] hover:bg-[#EBEDEF] rounded-2xl p-2 px-2.5 flex items-center justify-between transition-colors text-left"
             >
               <div className="flex items-center space-x-2.5 min-w-0">
-                <img
-                  src={user?.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80"}
-                  alt={user?.name || "Oliver Brown"}
-                  className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                />
+                {user?.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.name || "User"}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#2E7D32] to-emerald-400 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                    {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-slate-900 truncate leading-tight">
-                    {user?.name || "Oliver Brown"}
+                    {user?.name || (user?.email ? user.email.split('@')[0] : "ReachInbox User")}
                   </p>
                   <p className="text-[11px] text-slate-400 truncate leading-tight">
-                    {user?.email || "oliver.brown@domain.io"}
+                    {user?.email || "user@reachinbox.ai"}
                   </p>
                 </div>
               </div>
@@ -168,7 +174,7 @@ export const DashboardLayout: React.FC = () => {
                   <span>Slack Webhooks</span>
                 </button>
                 <a
-                  href="http://localhost:5000/admin/queues"
+                  href={`${import.meta.env.VITE_API_BASE_URL || ''}/admin/queues`}
                   target="_blank"
                   rel="noreferrer"
                   onClick={() => setProfileDropdownOpen(false)}

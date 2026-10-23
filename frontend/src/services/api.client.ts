@@ -188,6 +188,40 @@ class ApiClient {
     await this.client.delete(`/api/v1/emails/scheduled/${id}`);
   }
 
+  async getEmailById(id: string): Promise<{
+    id: string;
+    recipientEmail: string;
+    subject: string;
+    body: string;
+    senderEmail: string;
+    senderName: string;
+    scheduledAt?: string;
+    sentAt?: string;
+    status: string;
+    messageId?: string | null;
+    previewUrl?: string | null;
+    createdAt: string;
+  }> {
+    const res = await this.client.get<{
+      success: boolean;
+      data: {
+        id: string;
+        recipientEmail: string;
+        subject: string;
+        body: string;
+        senderEmail: string;
+        senderName: string;
+        scheduledAt?: string;
+        sentAt?: string;
+        status: string;
+        messageId?: string | null;
+        previewUrl?: string | null;
+        createdAt: string;
+      };
+    }>(`/api/v1/emails/${id}`);
+    return res.data.data;
+  }
+
   // --- Elasticsearch Search ---
   async searchEmails(params: {
     q?: string;

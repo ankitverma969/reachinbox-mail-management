@@ -13,6 +13,9 @@ router.get('/scheduled', optionalAuth, (req, res, next) => emailSchedulingContro
 // List delivered and failed outreach emails
 router.get('/sent', optionalAuth, (req, res, next) => emailSchedulingController.getSent(req, res, next));
 
+// Get single email details by ID
+router.get('/:id', optionalAuth, (req, res, next) => emailSchedulingController.getById(req, res, next));
+
 // Cancel a scheduled outreach email
 router.delete('/scheduled/:id', optionalAuth, (req, res, next) => emailSchedulingController.cancel(req, res, next));
 

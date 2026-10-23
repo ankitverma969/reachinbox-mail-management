@@ -246,6 +246,44 @@ export class EmailSchedulingService {
       status: 'CANCELLED'
     });
   }
+
+  /**
+   * Retrieves full details for a single email by ID.
+   */
+  async getEmailById(id: string): Promise<{
+    id: string;
+    recipientEmail: string;
+    subject: string;
+    body: string;
+    senderEmail: string;
+    senderName: string;
+    scheduledAt?: string;
+    sentAt?: string;
+    status: string;
+    messageId?: string | null;
+    previewUrl?: string | null;
+    createdAt: string;
+  }> {
+    const emailJob = await scheduledEmailRepository.findById(id);
+    if (!emailJob) {
+      throw new NotFoundError(`Email with ID '${id}' not found`);
+    }
+    const sender = (emailJob as { sender?: { emailAddress?: string; displayName?: string } }).sender;
+    return {
+      id: emailJob.id,
+      recipientEmail: emailJob.recipientEmail,
+      subject: emailJob.subject,
+      body: emailJob.body,
+      senderEmail: sender?.emailAddress || 'system@reachinbox.ai',
+      senderName: sender?.displayName || 'ReachInbox Sender',
+      scheduledAt: emailJob.scheduledAt ? emailJob.scheduledAt.toISOString() : undefined,
+      sentAt: emailJob.sentAt ? emailJob.sentAt.toISOString() : undefined,
+      status: emailJob.status,
+      messageId: emailJob.smtpMessageId,
+      previewUrl: emailJob.etherealPreviewUrl,
+      createdAt: emailJob.createdAt.toISOString()
+    };
+  }
 }
 
 export const emailSchedulingService = new EmailSchedulingService();
