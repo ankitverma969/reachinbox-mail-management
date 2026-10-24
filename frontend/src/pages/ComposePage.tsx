@@ -216,7 +216,7 @@ export const ComposePage: React.FC = () => {
         const fileListHtml = attachments
           .map((f) => `<li style="margin-bottom: 4px;">📎 <strong>${f.name}</strong> (${(f.size / 1024).toFixed(1)} KB)</li>`)
           .join('');
-        finalBody += `<div style="margin-top: 20px; padding: 12px 16px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-family: sans-serif; font-size: 12px; color: #334155;"><p style="margin: 0 0 6px 0; font-weight: 600;">Attached Documents (${attachments.length}):</p><ul style="margin: 0; padding-left: 20px;">${fileListHtml}</ul></div>`;
+        finalBody += `\n\n<div style="margin-top: 20px; padding: 12px 16px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-family: sans-serif; font-size: 12px; color: #334155;"><p style="margin: 0 0 6px 0; font-weight: 600;">Attached Documents (${attachments.length}):</p><ul style="margin: 0; padding-left: 20px;">${fileListHtml}</ul></div>`;
       }
 
       const scheduledAtIso = scheduledDate
@@ -275,7 +275,7 @@ export const ComposePage: React.FC = () => {
         const fileListHtml = attachments
           .map((f) => `<li style="margin-bottom: 4px;">📎 <strong>${f.name}</strong> (${(f.size / 1024).toFixed(1)} KB)</li>`)
           .join('');
-        finalBody += `<div style="margin-top: 20px; padding: 12px 16px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-family: sans-serif; font-size: 12px; color: #334155;"><p style="margin: 0 0 6px 0; font-weight: 600;">Attached Documents (${attachments.length}):</p><ul style="margin: 0; padding-left: 20px;">${fileListHtml}</ul></div>`;
+        finalBody += `\n\n<div style="margin-top: 20px; padding: 12px 16px; background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-family: sans-serif; font-size: 12px; color: #334155;"><p style="margin: 0 0 6px 0; font-weight: 600;">Attached Documents (${attachments.length}):</p><ul style="margin: 0; padding-left: 20px;">${fileListHtml}</ul></div>`;
       }
 
       // Immediate delivery: scheduledAt set to current timestamp

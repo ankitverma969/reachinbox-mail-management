@@ -5,6 +5,7 @@ import { api, type ScheduledEmailItem } from '../services/api.client';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { formatDynamicScheduledDate } from '../utils/date-formatter.util';
+import { formatEmailSnippet } from '../utils/html-sanitizer.util';
 
 export const ScheduledEmailsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -136,9 +137,9 @@ export const ScheduledEmailsPage: React.FC = () => {
                   <span className="font-semibold text-slate-900 truncate flex-shrink-0">
                     {email.subject}
                   </span>
-                  {email.body && (
+                  {email.body && formatEmailSnippet(email.body) && (
                     <span className="text-slate-400 ml-1.5 truncate">
-                      - {email.body.replace(/<[^>]*>/g, '').trim()}
+                      - {formatEmailSnippet(email.body)}
                     </span>
                   )}
                 </div>

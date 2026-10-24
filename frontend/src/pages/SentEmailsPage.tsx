@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Star, ExternalLink, Loader2, Send } from 'lucide-react';
 import { api, type SentEmailItem } from '../services/api.client';
 import { formatDynamicSentDate } from '../utils/date-formatter.util';
+import { formatEmailSnippet } from '../utils/html-sanitizer.util';
 
 export const SentEmailsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -100,9 +101,9 @@ export const SentEmailsPage: React.FC = () => {
                   <span className="font-semibold text-slate-900 truncate flex-shrink-0">
                     {email.subject}
                   </span>
-                  {email.body && (
+                  {email.body && formatEmailSnippet(email.body) && (
                     <span className="text-slate-400 ml-1.5 truncate">
-                      - {email.body.replace(/<[^>]*>/g, '').trim()}
+                      - {formatEmailSnippet(email.body)}
                     </span>
                   )}
                 </div>

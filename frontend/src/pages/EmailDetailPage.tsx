@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api.client';
 import { useToast } from '../context/ToastContext';
 import { formatDetailFullDate } from '../utils/date-formatter.util';
+import { sanitizeEmailHtml } from '../utils/html-sanitizer.util';
 
 interface EmailDetailData {
   id: string;
@@ -231,9 +232,54 @@ export const EmailDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* Dynamic Email Body */}
-        <div className="text-sm text-slate-800 leading-relaxed font-normal pt-2 whitespace-pre-wrap space-y-4">
-          {email.body}
+        {/* Dynamic Email Body & Attachments */}
+        <div className="text-sm text-slate-800 leading-relaxed font-normal pt-2">
+          {(() => {
+            const rawBody = email.body || '';
+            const attachmentSplitRegex = /(<div[\s\S]*?(?:Attached Documents|📎)[\s\S]*?<\/div>)/i;
+            const parts = rawBody.split(attachmentSplitRegex);
+
+            if (parts.length > 1) {
+              return (
+                <div className="space-y-4">
+                  {parts.map((part, index) => {
+                    if (!part.trim()) return null;
+                    if (attachmentSplitRegex.test(part)) {
+                      return (
+                        <div
+                          key={index}
+                          className="rounded-lg overflow-hidden animate-fade-in"
+                          dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(part) }}
+                        />
+                      );
+                    }
+                    return (
+                      <div key={index} className="whitespace-pre-wrap leading-relaxed text-slate-800">
+                        {part.trim()}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
+
+            // Generic HTML email body
+            if (/<[a-z][\s\S]*>/i.test(rawBody)) {
+              return (
+                <div
+                  className="leading-relaxed text-slate-800 space-y-3"
+                  dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(rawBody) }}
+                />
+              );
+            }
+
+            // Default plain text email body
+            return (
+              <div className="whitespace-pre-wrap leading-relaxed text-slate-800">
+                {rawBody}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
