@@ -38,6 +38,7 @@ Designed to manage cold outreach campaigns at scale, this system coordinates del
 12. [Limitations & Future Roadmap](#12-limitations--future-roadmap)
 13. [Demonstration Video Guide](#13-demonstration-video-guide)
 14. [Academic Integrity & Anti-Plagiarism Statement](#14-academic-integrity--anti-plagiarism-statement)
+15. [Assumptions, Shortcuts & Engineering Trade-Offs](#15-assumptions-shortcuts--engineering-trade-offs)
 
 ---
 
@@ -82,6 +83,19 @@ The **ReachInbox Email Job Scheduler** solves this problem. It acts as an intell
 | **Search Engine** | **Elasticsearch Dual-Write** | Full-text search across subject, body, and recipient with sub-second response times, synchronized via a durable Transactional Outbox pattern. |
 | **Queue Monitoring** | **Bull Board Admin UI** | Dedicated admin interface at `/admin/queues` with real-time queue telemetry, active job visualization, and brute-force rate-limiting protection. |
 | **Crash Recovery** | **Startup Reconciliation** | If the server or worker crashes, startup reconciliation scans PostgreSQL and re-enqueues missing jobs with exact remaining delays. Already sent emails are never re-sent. |
+
+### Feature Implementation Matrix (Submission Guidelines Mapping)
+
+| Subsystem | Functional Area | Implemented Capabilities | Source Reference |
+|---|---|---|---|
+| **Backend** | **Scheduler** | Future email scheduling using BullMQ delayed jobs backed by Redis sorted sets. Dynamic staggered batch delivery calculation (`delayBetweenEmails`). **Strictly zero cron jobs**. | [`backend/src/modules/email-scheduling/`](file:///e:/reachinbox-hiring-assignment/backend/src/modules/email-scheduling/) |
+| **Backend** | **Persistence** | PostgreSQL relational storage using Prisma ORM. ACID transaction boundaries for bulk campaign scheduling. Startup reconciliation (`ScheduleRecoveryService`) to restore delayed jobs after server restarts without duplicates. | [`backend/src/modules/persistence/`](file:///e:/reachinbox-hiring-assignment/backend/src/modules/persistence/) |
+| **Backend** | **Rate Limiting** | Sliding UTC hourly quota enforcement per sender identity using atomic Redis Lua scripts. Automatic `RATE_LIMITED_RESCHEDULED` rollover with randomized jitter. Deduplicated Slack alerts. | [`backend/src/modules/rate-limiting/`](file:///e:/reachinbox-hiring-assignment/backend/src/modules/rate-limiting/) |
+| **Backend** | **Concurrency** | 5 concurrent workers per instance. Cross-worker distributed throttle locks (`throttle:sender:{id}`) preventing parallel collision for the same sender domain. | [`backend/src/workers/email-delivery.worker.ts`](file:///e:/reachinbox-hiring-assignment/backend/src/workers/email-delivery.worker.ts) |
+| **Frontend** | **Login** | Google OAuth 2.0 flow with CSRF protection, plus an authenticated Evaluator direct email login. Session stored in secure, HttpOnly cookies. | [`frontend/src/pages/LoginPage.tsx`](file:///e:/reachinbox-hiring-assignment/frontend/src/pages/LoginPage.tsx) |
+| **Frontend** | **Dashboard** | Overview metrics, live campaign counters, and active route pills (`#E8F5E9`). | [`frontend/src/pages/DashboardOverview.tsx`](file:///e:/reachinbox-hiring-assignment/frontend/src/pages/DashboardOverview.tsx) |
+| **Frontend** | **Compose** | CSV/TXT lead ingestion, auto-header detection (`email`, `name`, `company`), template variable auto-interpolation (`{{name}}`, `{{company}}`), live preview, delay and hourly limit sliders. | [`frontend/src/pages/ComposePage.tsx`](file:///e:/reachinbox-hiring-assignment/frontend/src/pages/ComposePage.tsx) |
+| **Frontend** | **Tables & Views**| **Scheduled Emails**: Amber badges, countdown clocks, job cancellation modal.<br>**Sent Emails**: Green SENT badges, rendered HTML email inspector, clickable Ethereal preview links.<br>**Senders & Integrations**: Multi-identity management, masked passwords (`••••••••`), Slack OAuth connection status. | [`frontend/src/pages/ScheduledEmailsPage.tsx`](file:///e:/reachinbox-hiring-assignment/frontend/src/pages/ScheduledEmailsPage.tsx)<br>[`frontend/src/pages/SentEmailsPage.tsx`](file:///e:/reachinbox-hiring-assignment/frontend/src/pages/SentEmailsPage.tsx)<br>[`frontend/src/pages/EmailDetailPage.tsx`](file:///e:/reachinbox-hiring-assignment/frontend/src/pages/EmailDetailPage.tsx) |
 
 ---
 
@@ -426,9 +440,32 @@ The frontend application will start at `http://localhost:5173`.
 
 ### Frontend Configuration (`frontend/.env`)
 
-| Variable | Description | Safe Example Value |
-|---|---|---|
 | `VITE_API_BASE_URL` | Root URL of backend Express API | `http://localhost:5000` |
+
+### How to Set Up Ethereal Email & Environment Variables
+
+Ethereal is a fake SMTP service used for safe email development and automated testing. It traps outgoing messages in a sandbox without spamming real recipient inboxes and generates public web preview URLs for every delivered email.
+
+#### 1-Minute Ethereal Setup:
+1. **Option 1 — Automatic (5 seconds via Node.js)**:
+   In your terminal inside `backend/`, run:
+   ```powershell
+   node -e "const nodemailer = require('nodemailer'); nodemailer.createTestAccount().then(acc => console.log('ETHEREAL_USER=' + acc.user + '\nETHEREAL_PASSWORD=' + acc.pass));"
+   ```
+2. **Option 2 — Web Browser**:
+   Visit [https://ethereal.email/create](https://ethereal.email/create) and click **Create Ethereal Account**.
+3. **Copy to `.env`**:
+   Add the generated username and password to your `backend/.env` file:
+   ```dotenv
+   ETHEREAL_HOST=smtp.ethereal.email
+   ETHEREAL_PORT=587
+   ETHEREAL_USER=your_generated_username@ethereal.email
+   ETHEREAL_PASSWORD=your_generated_password
+   ```
+4. **How the System Uses It**:
+   - The delivery worker (`backend/src/workers/email-delivery.worker.ts`) connects to Ethereal using Nodemailer.
+   - Upon successful transmission, `ethereal-email.service.ts` extracts the unique `Message-ID` and clickable web preview URL (`https://ethereal.email/message/XxYyZz`).
+   - The preview URL is persisted in PostgreSQL and rendered in the frontend's **Sent** tab as a direct link to view the rendered HTML email in Ethereal's sandbox viewer.
 
 ### Production AWS EC2 Environment Configuration
 In production on AWS EC2, all environment variables for the backend and Docker containers are read from:
@@ -708,6 +745,37 @@ A comprehensive, timed **5-minute evaluation demonstration script** structured a
 - **Independent Architecture**: Every distributed system component—including the BullMQ Redis sorted set delayed scheduler, atomic Redis Lua rate-limiting scripts, startup recovery reconciliation state machine, transactional outbox pattern for Elasticsearch, constant-time administrative security guards, and the React + Tailwind design-system frontend—was architected and coded independently to address the hiring assignment's exact specifications.
 - **Standard Open-Source Libraries**: All third-party dependencies utilized (`express`, `bullmq`, `ioredis`, `@prisma/client`, `nodemailer`, `react`, `vitest`) are standard industry tools declared in `package.json` under permissive open-source licenses (MIT/Apache 2.0).
 - **Verification Guarantee**: The entire implementation is backed by 2,211 automated test cases, complete TypeScript strict compilation, and verified locally on reproducible environments.
+
+---
+
+## 15. Assumptions, Shortcuts & Engineering Trade-Offs
+
+In accordance with Section 5 of the ReachInbox Submission Guidelines, here is a transparent documentation of all deliberate architectural decisions, engineering trade-offs, and pragmatic shortcuts:
+
+### 1. BullMQ Redis Delayed Sorted Sets vs. Cron Polling (Architectural Decision)
+- **Choice**: Implemented delayed job scheduling using BullMQ and Redis sorted sets (`ZADD` with millisecond Unix timestamps) instead of traditional `cron` interval polling.
+- **Trade-off**: Requires an active Redis instance.
+- **Rationale**: The assignment specification strictly mandates *"NO cron jobs"*. Cron polling causes $O(N)$ database query spikes every minute, creates race conditions across multi-worker deployments, and introduces up to 60 seconds of scheduling latency. Redis sorted sets provide $O(\log N)$ precision, millisecond accuracy, and zero idle CPU polling overhead.
+
+### 2. Ethereal Fake SMTP vs. Production Cloud SMTP (Sandbox Trade-Off)
+- **Choice**: Outbound email transport is configured for Ethereal SMTP by default.
+- **Trade-off**: Emails are delivered to an isolated web sandbox rather than real prospect inboxes.
+- **Rationale**: Protects evaluators from spamming real email addresses during automated tests and manual walkthroughs. It eliminates the friction of requiring production SendGrid or Amazon SES credentials, while providing instant, public web preview links for verifiable HTML rendering. To use production SMTP, simply update the SMTP host and credentials in the sender profile.
+
+### 3. At-Least-Once Delivery with Deduplication vs. Theoretical Exactly-Once (Reliability Guarantee)
+- **Choice**: Implemented resilient at-least-once delivery with deterministic deduplication keys (`email-{id}`) and database row-level locking (`SELECT ... FOR UPDATE SKIP LOCKED`).
+- **Trade-off**: In the microscopic crash window where SMTP accepts a message but the server crashes before recording the success receipt in PostgreSQL, startup recovery verifies the delivery attempt before re-enqueuing.
+- **Rationale**: The Two Generals problem mathematically proves that absolute "exactly-once" delivery across an asynchronous network is impossible. Pairing idempotent worker claims with atomic status transitions provides the strongest possible delivery guarantee in distributed systems.
+
+### 4. Transactional Outbox Pattern for Elasticsearch (Consistency vs. Availability)
+- **Choice**: Elasticsearch search indexing writes through a PostgreSQL `indexing_outbox` table rather than executing distributed two-phase commits (2PC).
+- **Trade-off**: Eventual consistency (sub-second indexing lag) rather than immediate synchronous search updates.
+- **Rationale**: If Elasticsearch experiences network partitions or high load, database transactions still commit without failing email scheduling. The outbox background processor drains buffered events once Elasticsearch recovers, ensuring zero data loss.
+
+### 5. Evaluator Direct Email Login alongside Google OAuth 2.0 (Testing Shortcut)
+- **Choice**: Provided a direct email input form on the login screen alongside the production Google OAuth 2.0 flow.
+- **Trade-off**: Evaluators can authenticate locally without configuring Google Cloud Console OAuth credentials.
+- **Rationale**: Avoids blocking evaluators who do not have pre-configured Google OAuth credentials on localhost, while keeping the full production OAuth 2.0 PKCE flow intact for production deployment.
 
 ---
 
