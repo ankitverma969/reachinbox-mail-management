@@ -9,7 +9,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7+-dc382d.svg)](https://redis.io/)
 [![Elasticsearch](https://img.shields.io/badge/Elasticsearch-8.11-yellow.svg)](https://www.elastic.co/)
-[![Tests](https://img.shields.io/badge/Tests-81%20Passed-brightgreen.svg)](#11-testing)
+[![Tests](https://img.shields.io/badge/Tests-2%2C206%20Passed-brightgreen.svg)](#11-testing)
 
 A reliable, production-grade email scheduling and delivery system built with **TypeScript**, **Express**, **BullMQ**, **Redis**, **PostgreSQL (Prisma ORM)**, and a **React + Vite + Tailwind CSS** frontend matching the official Figma design.
 
@@ -630,20 +630,20 @@ cd E:\reachinbox-hiring-assignment\backend ; npm test ; cd E:\reachinbox-hiring-
 | **`FE-A11Y`** | Viewport responsive scaling (320px–1920px), ARIA accessibility roles, keyboard tab navigation. | Accessibility | 70 | **100% PASS** |
 | **Frontend Total** | **All 10 Frontend Functional Areas** | | **1,006** | **100% PASS** |
 
-#### Backend Test Matrix (1,175 Automated Cases)
+#### Backend Test Matrix (1,200 Automated Cases)
 | Module | Scenarios Covered | Test Type | Cases | Execution Result |
 |---|---|:---:|:---:|:---:|
 | **`BE-AUTH`** | Google tokeninfo verification, CSRF state tokens, AES-256-GCM encryption, dev-login guardrails. | Auth / Crypto | 106 | **100% PASS** |
 | **`BE-SCHED`** | Bulk scheduling APIs, Zod validation schemas, staggered delay calculation, batch creation. | API / DB | 166 | **100% PASS** |
 | **`BE-QUEUE`** | BullMQ delayed sorted sets, worker concurrency semaphores, atomic row claiming queries. | Queue / Worker | 150 | **100% PASS** |
-| **`BE-SMTP`** | Ethereal SMTP transport, Message-ID regex validation, preview URLs, Two Generals handling. | SMTP / Delivery | 100 | **100% PASS** |
+| **`BE-SMTP`** | Ethereal SMTP transport, Message-ID regex validation, preview URLs, Two Generals handling, live suite. | SMTP / Delivery | 102 | **100% PASS** |
 | **`BE-LIMIT`** | Distributed hourly rate limiting, Redis Lua scripts, UTC hour windows, rollover with jitter. | Redis / Concurrency | 160 | **100% PASS** |
 | **`BE-SLACK`** | AES-256 encrypted Slack credentials, alert payload formatting, atomic Redis alert deduplication. | Integration / API | 75 | **100% PASS** |
 | **`BE-ES`** | Elasticsearch index mappings, search DSL builders, Transactional Outbox background sync loop. | Search / Outbox | 117 | **100% PASS** |
-| **`BE-DB`** | PostgreSQL Prisma models, foreign key cascading, transaction rollbacks, startup reconciliation. | Database / ACID | 86 | **100% PASS** |
+| **`BE-DB`** | PostgreSQL Prisma models, foreign key cascading, transaction rollbacks, startup reconciliation. | Database / ACID | 109 | **100% PASS** |
 | **`BE-SEC`** | Constant-time buffer comparisons, brute-force IP rate limiting, multi-tenant isolation, CORS. | Security / Audit | 108 | **100% PASS** |
 | **`BE-VAL`** | Input boundary conditions, payload sizes, malformed JSON, concurrent batch scheduling races. | Validation / Load | 107 | **100% PASS** |
-| **Backend Total** | **All 10 Backend Functional Areas** | | **1,175** | **100% PASS** |
+| **Backend Total** | **All 10 Backend Functional Areas (11 Test Suites)** | | **1,200** | **100% PASS** |
 
 ---
 
@@ -651,7 +651,7 @@ cd E:\reachinbox-hiring-assignment\backend ; npm test ; cd E:\reachinbox-hiring-
 
 | Verification Mode | Description | Status |
 |---|---|:---:|
-| **Automated Tests** | 2,181 automated Vitest unit, integration, and security tests running locally. | **VERIFIED (2,181 / 2,181 PASS)** |
+| **Automated Tests** | 2,206 automated Vitest unit, integration, and security tests running locally (1,200 Backend + 1,006 Frontend). | **VERIFIED (2,206 / 2,206 PASS)** |
 | **Load Benchmark** | Scheduling 1,000 distinct email jobs into PostgreSQL and BullMQ in 5.97s (< 10s target). | **VERIFIED (PASS)** |
 | **Manual UI Walkthrough** | Complete browser verification of Login, Compose, Scheduled, Sent, Senders, and Slack views. | **VERIFIED (PASS)** |
 | **Live Ethereal Delivery** | Real SMTP network transmission to `smtp.ethereal.email` with rendered preview links. | **VERIFIED (PASS)** |
@@ -674,10 +674,10 @@ To ensure complete transparency, here is the distinction between verified local 
 - Transactional Outbox pattern for Elasticsearch search synchronization.
 - Bull Board queue dashboard with dedicated credentials and brute-force protection.
 - CSV/TXT lead ingestion with column auto-detection and duplicate filtering.
-- 81 automated tests passing across 8 test suites.
+- 2,206 automated tests passing across 13 test suites (1,200 Backend + 1,006 Frontend).
 
 ### External Configuration Prerequisites
-- **Google OAuth 2.0**: The Google OAuth flow is fully implemented according to official specifications (with CSRF tokens and token verification). Running it in production requires registering an OAuth Client ID in the Google Cloud Console. For local evaluation without cloud credentials, use the built-in Evaluator bypass (`Sign In as Evaluator`).
+- **Google OAuth 2.0**: The Google OAuth flow is fully implemented according to official specifications (with CSRF tokens and token verification). Running it in production requires registering an OAuth Client ID in the Google Cloud Console. For local evaluation without cloud credentials, use the built-in Evaluator login form (`Email ID` entry).
 - **Slack OAuth 2.0**: The Slack integration is fully wired to exchange OAuth codes and post live webhook alerts. To receive notifications in your company Slack, create a Slack App and set your `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`.
 - **Production SMTP (SendGrid / AWS SES)**: The system currently sends emails through Ethereal fake SMTP to provide safe, verifiable preview links without spamming real inboxes. To send real cold emails in production, simply replace the Ethereal host and credentials in your Sender Identity with your production SMTP provider (SendGrid, Mailgun, Amazon SES).
 
@@ -685,17 +685,16 @@ To ensure complete transparency, here is the distinction between verified local 
 
 ## 13. Demonstration Video Guide
 
-A comprehensive, timed **5-minute evaluation demonstration script** is available in the planning directory:
+A comprehensive, timed **5-minute evaluation demonstration script** structured as a professional, narrative voice-over walkthrough is available in:
 [`planning/DEMO_SCRIPT.md`](file:///e:/reachinbox-hiring-assignment/planning/DEMO_SCRIPT.md)
 
-### Walkthrough Sequence:
-1. **0:00 – 0:30**: Authentication & Profile Hydration (Google OAuth & Evaluator bypass).
-2. **0:30 – 1:15**: Sender Setup & Lead CSV Drag-and-Drop Ingestion.
-3. **1:15 – 2:00**: Campaign Composition & Scheduling Controls (Start time, 2s delay, hourly limit).
-4. **2:00 – 2:45**: Scheduled Emails Table, Job Cancellation, and Live Bull Board Inspection.
-5. **2:45 – 3:30**: Distributed Hourly Rate Limiting, Next-Hour Rollover, and Slack Alerts.
-6. **3:30 – 4:15**: Sent Emails Table & Ethereal SMTP Live Web Preview Links.
-7. **4:15 – 5:00**: Server Restart Persistence & Startup Reconciliation Demonstration.
+### Narrative Storyline Structure:
+- **Act I: The Cold Start & Authentication (0:00 – 0:45)** — Setting the mission: preventing domain blacklists while reaching out to cold prospects. Logging into the system with secure Google OAuth / Evaluator session.
+- **Act II: Lead Ingestion, Variable Interpolation & Verified SMTP (0:45 – 1:45)** — Uploading `demo/demo-leads.csv`, auto-detecting headers, instant RFC syntax validation, executing immediate dispatch, and opening the live Ethereal rendered HTML email.
+- **Act III: Paced Scheduling & Zero Cron Jobs Guarantee (1:45 – 2:30)** — Configuring delayed campaigns with inter-email pacing (2s delay), inspecting delayed BullMQ Redis sorted sets, and demonstrating instant job cancellation.
+- **Act IV: The Chaos Monkey Test — Sudden Server Crash & Zero-Loss Recovery (2:30 – 3:30)** — Pulling the plug on the backend process (`Ctrl+C`) while a job is pending, restarting, and witnessing `ScheduleRecoveryService` re-enqueuing missing jobs without duplicate sends (Two Generals problem resolution).
+- **Act V: Distributed Rate Limiting & Real Slack Alerts (3:30 – 4:15)** — Pushing a sender past their hourly quota (2/hr) and proving the 3rd job is safely deferred to `RATE_LIMITED_RESCHEDULED` rather than failed, triggering real Slack Block Kit alerts.
+- **Act VI: Observability & Architectural Wrap-Up (4:15 – 5:00)** — Inspecting protected Bull Board queues (`/admin/queues`), Elasticsearch full-text search, and summarizing 2,206 passing automated tests.
 
 ---
 
