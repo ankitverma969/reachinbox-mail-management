@@ -1,5 +1,7 @@
 # ReachInbox Full-Stack Email Job Scheduler
 
+**Live demo:** https://reachinboxai4u.vercel.app
+
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express-4.21-lightgrey.svg)](https://expressjs.com/)
@@ -724,12 +726,12 @@ To ensure complete transparency, here is the distinction between verified local 
 
 ## 13. Demonstration Video Guide
 
-A comprehensive, timed **5-minute evaluation demonstration script** structured as a professional, narrative voice-over walkthrough is available in:
-[`planning/DEMO_SCRIPT.md`](file:///e:/reachinbox-hiring-assignment/planning/DEMO_SCRIPT.md)
+A comprehensive, timed **5-minute evaluation demonstration script** structured as a professional, narrative voice-over walkthrough was used locally during recording and is not part of this repository.
+
 
 ### Narrative Storyline Structure:
 - **Act I: The Cold Start & Authentication (0:00 – 0:45)** — Setting the mission: preventing domain blacklists while reaching out to cold prospects. Logging into the system with secure Google OAuth / Evaluator session.
-- **Act II: Lead Ingestion, Variable Interpolation & Verified SMTP (0:45 – 1:45)** — Uploading `demo/demo-leads.csv`, auto-detecting headers, instant RFC syntax validation, executing immediate dispatch, and opening the live Ethereal rendered HTML email.
+- **Act II: Lead Ingestion, Variable Interpolation & Verified SMTP (0:45 – 1:45)** — Uploading a sample leads file (used locally during recording; not part of this repository), auto-detecting headers, instant RFC syntax validation, executing immediate dispatch, and opening the live Ethereal rendered HTML email.
 - **Act III: Paced Scheduling & Zero Cron Jobs Guarantee (1:45 – 2:30)** — Configuring delayed campaigns with inter-email pacing (2s delay), inspecting delayed BullMQ Redis sorted sets, and demonstrating instant job cancellation.
 - **Act IV: The Chaos Monkey Test — Sudden Server Crash & Zero-Loss Recovery (2:30 – 3:30)** — Pulling the plug on the backend process (`Ctrl+C`) while a job is pending, restarting, and witnessing `ScheduleRecoveryService` re-enqueuing missing jobs without duplicate sends (Two Generals problem resolution).
 - **Act V: Distributed Rate Limiting & Real Slack Alerts (3:30 – 4:15)** — Pushing a sender past their hourly quota (2/hr) and proving the 3rd job is safely deferred to `RATE_LIMITED_RESCHEDULED` rather than failed, triggering real Slack Block Kit alerts.
